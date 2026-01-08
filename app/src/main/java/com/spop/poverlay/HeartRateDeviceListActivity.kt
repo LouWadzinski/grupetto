@@ -58,7 +58,7 @@ class HeartRateDeviceListActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         bluetoothAdapter = bluetoothManager.adapter
 
@@ -71,7 +71,7 @@ class HeartRateDeviceListActivity : ComponentActivity() {
                     DeviceListScreen(
                         devices = devices,
                         onDeviceClick = { device ->
-                             saveDeviceAndFinish(device)
+                            saveDeviceAndFinish(device)
                         },
                         onScanClick = {
                             checkPermissionsAndScan()
@@ -81,7 +81,7 @@ class HeartRateDeviceListActivity : ComponentActivity() {
                 }
             }
         }
-        
+
         checkPermissionsAndScan()
     }
 
@@ -115,12 +115,12 @@ class HeartRateDeviceListActivity : ComponentActivity() {
         if (isScanning) return
 
         devices.clear()
-        
+
         // Scan for Heart Rate service (0x180D)
         val scanFilter = ScanFilter.Builder()
-             //.setServiceUuid(android.os.ParcelUuid.fromString("0000180D-0000-1000-8000-00805F9B34FB"))
+            //.setServiceUuid(android.os.ParcelUuid.fromString("0000180D-0000-1000-8000-00805F9B34FB"))
             .build()
-        
+
         val scanSettings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build()
@@ -142,22 +142,22 @@ class HeartRateDeviceListActivity : ComponentActivity() {
         isScanning = false
         bluetoothAdapter?.bluetoothLeScanner?.stopScan(scanCallback)
     }
-    
+
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
-             val device = result.device
-             if (!devices.any { it.address == device.address } && device.name != null) {
-                 devices.add(device)
-             }
+            val device = result.device
+            if (!devices.any { it.address == device.address } && device.name != null) {
+                devices.add(device)
+            }
         }
     }
 
     private fun saveDeviceAndFinish(device: BluetoothDevice) {
         stopBleScan()
 
-val gv: GlobalVariables = GlobalVariables(this);
-gv.HRDeviceAddressSet(device.address)
-gv.HRDeviceNameSet(device.name)
+        val gv: GlobalVariables = GlobalVariables(this, GrupettoApplication.getDbHelper());
+        gv.HRDeviceAddressSet(device.address)
+        gv.HRDeviceNameSet(device.name)
 
 
 
@@ -183,7 +183,7 @@ fun DeviceListScreen(
         ) {
             Text(if (isScanning) "Scanning..." else "Scan for Heart Rate Monitors")
         }
-        
+
         Spacer(modifier = Modifier.height(16.dp))
 
         LazyColumn {

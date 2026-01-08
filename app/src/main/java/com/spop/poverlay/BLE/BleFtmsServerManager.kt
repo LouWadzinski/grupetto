@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.Flow
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.*
+import kotlin.concurrent.fixedRateTimer
 
 class BleFtmsServerManager(private val context: Context ) {
 
@@ -53,41 +54,44 @@ class BleFtmsServerManager(private val context: Context ) {
         bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         bluetoothAdapter = bluetoothManager?.adapter
         bluetoothLeAdvertiser = bluetoothAdapter?.bluetoothLeAdvertiser
+/*
+        val fixedRateTimer = fixedRateTimer(
+            name = "my-timer",
+            initialDelay = 1000L, // initial delay in milliseconds
+            period = 250L         // period between executions in milliseconds
+        ) {
+            // This block runs on a background thread
+            updateBikeData()
+        }
+
+ */
     }
 
     suspend fun observePower(power: Flow<Float>) {
         power.collect { value ->
+            //lastPower = 200
+
+
             lastPower = value.toInt()
-            updateBikeData()
+             updateBikeData()
         }
     }
 
     suspend fun observeCadence(cadence: Flow<Float>) {
         cadence.collect { value ->
             lastCadence = value.toFloat()
-            updateBikeData()
+            //updateBikeData()
         }
     }
 
     suspend fun observeSpeed(speed: Flow<Float>) {
         speed.collect { value ->
             lastSpeed = value.toFloat()
-            updateBikeData()
+            //updateBikeData()
         }
     }
 
-    private var lastHeartRate = 0
 
-    suspend fun observeHeartRate(heartRate: Flow<String>) {
-        heartRate.collect { value ->
-            try {
-                lastHeartRate = value.toInt()
-                updateBikeData()
-            }
-            catch (e: Exception)
-            {}
-        }
-    }
 
     @SuppressLint("MissingPermission")
     public fun updateBikeData() {
@@ -145,6 +149,9 @@ class BleFtmsServerManager(private val context: Context ) {
         data.add((cadenceVal and 0xFF).toByte())
         data.add(((cadenceVal shr 8) and 0xFF).toByte())
 
+
+        // for testing
+        //lastPower = 200
         // Instantaneous Power (sint16, unit 1W)
         data.add((lastPower and 0xFF).toByte())
         data.add(((lastPower shr 8) and 0xFF).toByte())
@@ -176,6 +183,7 @@ class BleFtmsServerManager(private val context: Context ) {
             .build()
 
         bluetoothLeAdvertiser?.startAdvertising(settings, data, advertiseCallback)
+
     }
 
     @SuppressLint("MissingPermission")
@@ -230,10 +238,10 @@ class BleFtmsServerManager(private val context: Context ) {
 
     private val advertiseCallback = object : AdvertiseCallback() {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
-            Log.i("BleFtmsServerManager", "FTMS Advertising started")
+
         }
         override fun onStartFailure(errorCode: Int) {
-            Log.e("BleFtmsServerManager", "FTMS Advertising failed: $errorCode")
+
         }
     }
 

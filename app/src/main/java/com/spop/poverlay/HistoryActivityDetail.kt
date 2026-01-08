@@ -77,7 +77,7 @@ class HistoryActivityDetail : ComponentActivity() {
     @Composable
     @Preview
     fun ActivityDetailScreen(headerId: Int) {
-        val dbHelper = remember { DBHelper(this@HistoryActivityDetail) }
+        val dbHelper = remember { GrupettoApplication.getDbHelper() }
         var activityData by remember { mutableStateOf<ActivityHeaderData?>(null) }
         var lineData by remember { mutableStateOf<ActivityLineData?>(null) }
         var fullLineData by remember { mutableStateOf<List<ActivityLinePoint>>(emptyList()) }
@@ -347,7 +347,8 @@ class HistoryActivityDetail : ComponentActivity() {
     }
 
     private fun updateActivityHeader(dbHelper: DBHelper, id: Int, title: String, notes: String) {
-        val db = dbHelper.writableDatabase
+        val db = GrupettoApplication.getDbHelper() .writableDatabase
+       // val db = dbHelper.writableDatabase
         val values = ContentValues().apply {
             put("Title", title)
             put("Notes", notes)
@@ -405,7 +406,7 @@ class HistoryActivityDetail : ComponentActivity() {
         dbHelper: DBHelper,
         id: Int
     ): Pair<ActivityLineData, List<ActivityLinePoint>> {
-        val db = dbHelper.readableDatabase
+        val db = GrupettoApplication.getDbHelper().readableDatabase
         val cursor = db.rawQuery(
             "SELECT Power, HeartRate, Cadance, Speed, Time, Distance FROM ActivityLine WHERE ActivityHeaderID = ? ORDER BY Time ASC",
             arrayOf(id.toString())

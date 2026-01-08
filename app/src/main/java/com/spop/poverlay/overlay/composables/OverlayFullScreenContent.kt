@@ -24,8 +24,9 @@ import com.spop.poverlay.R
 import com.spop.poverlay.DataBase.DBHelper
 import com.spop.poverlay.DataBase.GlobalVariables
 import com.spop.poverlay.overlay.RecordingState
-import com.spop.poverlay.util.LineChartMovable
+import com.spop.poverlay.util.LineChartsMovable
 import android.widget.Toast;
+import com.spop.poverlay.GrupettoApplication
 
 
 @Composable
@@ -40,8 +41,10 @@ fun OverlayFullScreenContent(
     rpm: String = "-",
     powerGraph: List<Float> = emptyList(),
     cadenceGraph: List<Float> = emptyList(),
+    simMode: Boolean = false,
     resistance: String = "-",
     speed: String = "-",
+    grade: String = "-",
     speedLabel: String = "",
     heartRate: String = "-",
     activityAvgHeartRate: String = "0",
@@ -53,6 +56,7 @@ fun OverlayFullScreenContent(
     activityMaxPower: String = "-",
     activityMaxCadence: String = "-",
     activityMaxHeartRate: String = "-",
+
     activityAvgPowerFloat: Float = 0f,
     activityAvgCadenceFloat: Float = 0f,
     activityAvgHeartRateFloat: Float = 0f,
@@ -61,6 +65,7 @@ fun OverlayFullScreenContent(
     pauseChart: Boolean = false,
     activityDurationTime: String = "-",
     recordingState: RecordingState = RecordingState.Stopped,
+    gear: Int = 0,
     onExitToHomeScreen: () -> Unit = {},
     onSpeedClicked: () -> Unit = {},
     onChartClicked: () -> Unit = {},
@@ -69,9 +74,11 @@ fun OverlayFullScreenContent(
     onStopClicked: () -> Unit = {},
     onStopConfirm: () -> Unit = {},
     onStopCancel: () -> Unit = {},
+    onGearChanged: (newGear: Int) -> Unit = {},
     onIncreaseResistance: () -> Unit = {},
     onDecreaseResistance: () -> Unit = {},
-    batteryPCT: String = ""
+    batteryPCT: String = "",
+    onClearStatCardPositions: () -> Unit = {}
 ) {
     val statCardModifier = Modifier
         .requiredWidth(135.dp)
@@ -80,23 +87,39 @@ fun OverlayFullScreenContent(
     var alpha by remember { mutableStateOf(1f) }
 
     val context = LocalContext.current
-    val dbHelper = remember { DBHelper(context) }
-    val globalVariables = remember { GlobalVariables(context) }
+    val dbHelper = remember { GrupettoApplication.getDbHelper() }
+    val globalVariables = remember {  GrupettoApplication.getGlobalVariables() }
     var layoutKey by remember { mutableStateOf(0) }
+
 
     Column(modifier = Modifier.fillMaxSize())
     {
-        Row(modifier = Modifier
-            .weight(1f)
-            .graphicsLayer(alpha = alpha)
-            .clickable { onChartClicked() }, verticalAlignment = Alignment.Top)
+        Slider(
+            value = alpha,
+
+            onValueChange = { alpha = it },
+            valueRange = 0.3f..1f,
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.Transparent)
+                .padding(horizontal = 32.dp, vertical = 8.dp)
+                .height(30.dp)
+
+        )
+
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .graphicsLayer(alpha = alpha)
+                .clickable { onChartClicked() }, verticalAlignment = Alignment.Top
+        )
         {
 
 
             Box(
                 modifier = modifier
                     .fillMaxSize()
-                    //.background(Color.Red)
+                    // .background(Color.Red)
                     .graphicsLayer(alpha = alpha)
                     .pointerInput(Unit) {
                         detectTapGestures(
@@ -105,6 +128,7 @@ fun OverlayFullScreenContent(
                         )
                     }
             ) {
+
 
                 key(layoutKey) {
 
@@ -144,7 +168,7 @@ fun OverlayFullScreenContent(
                         //batteryPCT = batteryPCT
 
 
-                        )
+                    )
                 }
                 key(layoutKey) {
                     StatCardMovable(
@@ -216,6 +240,37 @@ fun OverlayFullScreenContent(
 
                         )
                     }
+                    if (simMode) {
+                        key(layoutKey) {
+                            StatCardMovable(
+                                "Gear",
+                                (20 - gear / 2).toInt().toString(),
+                                "",
+                                11,
+
+                                125, 220,
+                                statCardModifier
+
+                                    .requiredWidth(135.dp),
+                                averages = false,
+                            )
+                        }
+                        key(layoutKey) {
+                            StatCardMovable(
+                                "Grade",
+                                grade,
+                                "",
+                                11,
+
+                                125, 330,
+                                statCardModifier
+
+                                    .requiredWidth(135.dp),
+                                averages = false,
+                            )
+                        }
+                    }
+                    /*
                     key(layoutKey) {
                         LineChartMovable(
                             average = activityAvgCadence.toFloat(),
@@ -255,7 +310,7 @@ fun OverlayFullScreenContent(
                             average = activityAvgPower.toFloat(),
                             id = 9,
                             offsetx = 250,
-                            offsety = 440
+                            offsety = 380
 
                         )
                     }
@@ -278,12 +333,37 @@ fun OverlayFullScreenContent(
 
                             id = 10,
                             offsetx = 250,
-                            offsety = 480
+                            offsety = 440
 
                         )
                     }
+*/
+                    key(layoutKey) {
+                        LineChartsMovable(
+                            heartRateData = heartrateGraph,
+                            powerData = powerGraph,
+                            cadenceData = cadenceGraph,
+                            heartRateMaxValue = 120f,
+                            powerMaxValue = 300f,
+                            cadenceMaxValue = 100f,
+                            modifier = Modifier
+                                .requiredWidth(750.dp)
+                                .requiredHeight(440.dp),
+                            heartRateMinValue = 50f,
+                            powerMinValue = 50f,
+                            cadenceMinValue = 50f,
+                            heartRateAverage = activityAvgHeartRate.toFloat(),
+                            powerAverage = activityAvgPower.toFloat(),
+                            cadenceAverage = activityAvgCadence.toFloat(),
+                            offsetx = 250,
+                            offsety = 380,
+                            id = 8
 
+                        )
+
+                    }
                 }
+
 
 
 
@@ -348,8 +428,13 @@ fun OverlayFullScreenContent(
                             Column(modifier = Modifier.background(Color.White)) {
                                 Text("Are you sure you want to stop recording this activity?")
                                 Row() {
-                                    Button(onClick = { onStopConfirm()
-                                    Toast.makeText(context, "Recording stopped, a TCX File was created of this activity in Documents / Grupetto", Toast.LENGTH_LONG).show()
+                                    Button(onClick = {
+                                        onStopConfirm()
+                                        Toast.makeText(
+                                            context,
+                                            "Recording stopped, a TCX File was created of this activity in Documents / Grupetto",
+                                            Toast.LENGTH_LONG
+                                        ).show()
 
                                     }) {
                                         Text("Stop Recording")
@@ -374,8 +459,9 @@ fun OverlayFullScreenContent(
                 ) {
                     FloatingActionButton(
                         onClick = {
-                            val userId = globalVariables.UserIDGet()
-                            dbHelper.clearStatCardPositions(userId)
+
+                            onClearStatCardPositions()
+
                             layoutKey++ // Force recomposition of movables
                         },
                         containerColor = Color.White,
@@ -385,20 +471,27 @@ fun OverlayFullScreenContent(
                         Icon(Icons.Default.Refresh, contentDescription = "Reset Positions")
                     }
                 }
+
+
+                if (simMode) {
+                    Box(modifier = Modifier.height(30.dp).align(Alignment.BottomEnd)) {
+                        Slider(
+                            value = 40 - gear.toFloat(),
+
+                            onValueChange = { onGearChanged(40 - it.toInt()) },
+                            valueRange = 0f..40f,
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .background(Color.Transparent)
+                                .padding(horizontal = 32.dp, vertical = 8.dp)
+
+                        )
+                    }
+                }
             }
 
         }
-        Slider(
-            value = alpha,
 
-            onValueChange = { alpha = it },
-            valueRange = 0f..1f,
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color.Transparent)
-                .padding(horizontal = 32.dp, vertical = 8.dp)
-               // .align(Alignment.BottomCenter)
-        )
 
     }
 }

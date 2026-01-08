@@ -27,7 +27,6 @@ import com.spop.poverlay.BLE.BleHeartRateManager
 import androidx.lifecycle.lifecycleScope
 import com.spop.poverlay.DataBase.DBHelper
 import com.spop.poverlay.DataBase.GlobalVariables
-import com.spop.poverlay.HistoryActivity.ActivityData
 import com.spop.poverlay.overlay.OverlayService
 import com.spop.poverlay.ui.theme.PTONOverlayTheme
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,6 +41,8 @@ class ConfigurationViewModel(
     private val configurationRepository: ConfigurationRepository,
     private val releaseChecker: ReleaseChecker
 ) : AndroidViewModel(application) {
+
+    val dbHelper = GrupettoApplication.getDbHelper()
     val finishActivity = MutableLiveData<Unit>()
     val requestOverlayPermission = MutableLiveData<Unit>()
     val requestRestart = MutableLiveData<Unit>()
@@ -57,7 +58,7 @@ class ConfigurationViewModel(
         get() = configurationRepository.showTimerWhenMinimized
 
 
-    val gv = GlobalVariables(getApplication())
+    val gv = GlobalVariables(getApplication(), dbHelper)
 
 
     private var mutableaheartRateDeviceName = MutableStateFlow("None Selected")
@@ -66,7 +67,7 @@ class ConfigurationViewModel(
     private var mutableCurrentUserName = MutableStateFlow("")
     var  currentUserName = mutableCurrentUserName.asStateFlow()
 
-    private val bleHeartRateManager = BleHeartRateManager(getApplication())
+    private val bleHeartRateManager = GrupettoApplication.getHeartRateManager()/// BleHeartRateManager(getApplication())
     val heartRate = bleHeartRateManager.heartRate
 
     init {
@@ -80,23 +81,17 @@ class ConfigurationViewModel(
         {
             bleHeartRateManager.disconnect()
         }
-        /*
-        viewModelScope.launch {
-            configurationRepository.heartRateDeviceAddress.collect { address ->
-                if (address != null) {
-                    bleHeartRateManager.connect(address)
-                } else {
-                    bleHeartRateManager.disconnect()
-                }
-            }
-        }
-        */
+
 
     }
+
+
 
     override fun onCleared() {
         super.onCleared()
         bleHeartRateManager.disconnect()
+
+
     }
 
     private fun updatePermissionState() {
@@ -116,10 +111,10 @@ class ConfigurationViewModel(
 
 
     fun onStartServiceClicked() {
-        bleHeartRateManager.disconnect()
-        val dbHelper = DBHelper(getApplication())
+        //bleHeartRateManager.disconnect()
 
-        val gv = GlobalVariables(getApplication())
+
+        val gv = GlobalVariables(getApplication(), dbHelper)
         val userId = gv.UserIDGet()
 
         val user = dbHelper.getUser(userId)
@@ -135,6 +130,7 @@ class ConfigurationViewModel(
             Timber.w("User ID $userId not found, opening UserListActivity")
             openUserList.value = Unit
         }
+        //dbHelper.close()
     }
 
 
@@ -190,7 +186,8 @@ class ConfigurationViewModel(
                 bleHeartRateManager.disconnect()
             }
         }
-        if (gv.HRDeviceAddressGet() == null)bleHeartRateManager.disconnect()
+        if (gv.HRDeviceAddressGet() == null)
+            bleHeartRateManager.disconnect()
         refreshActivities()
 
 
@@ -220,9 +217,12 @@ class ConfigurationViewModel(
         activities.addAll(updatedList)
     }
 
+
+
+
     private fun getActivities(): List<ActivityData> {
-        val dbHelper = DBHelper(getApplication())
-        val gv = GlobalVariables(getApplication())
+
+        val gv = GlobalVariables(getApplication(), dbHelper)
         val userId = gv.UserIDGet()
 
         val db = dbHelper.readableDatabase

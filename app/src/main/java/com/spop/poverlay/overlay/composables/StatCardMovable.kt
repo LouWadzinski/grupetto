@@ -1,5 +1,6 @@
 package com.spop.poverlay.overlay.composables
-
+import android.util.Log
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,8 +28,12 @@ import androidx.compose.ui.unit.sp
 import com.spop.poverlay.DataBase.DBHelper
 import com.spop.poverlay.DataBase.GlobalVariables
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.foundation.combinedClickable
 
+import androidx.compose.material3.ExperimentalMaterial3Api // Assuming Material 3 is used for context menu
+import com.spop.poverlay.GrupettoApplication
 
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun StatCardMovable(
     name: String,
@@ -52,8 +58,8 @@ fun StatCardMovable(
     }
 
     val context = LocalContext.current
-    val dbHelper = remember { DBHelper(context) }
-    val globalVariables = remember { GlobalVariables(context) }
+    val dbHelper = remember { GrupettoApplication.getDbHelper()}
+    val globalVariables = remember { GrupettoApplication.getGlobalVariables() }
     val density = LocalDensity.current
 
     var offsetX by remember { mutableStateOf(offsetx.toFloat()) }
@@ -63,6 +69,7 @@ fun StatCardMovable(
     LaunchedEffect(id) {
         val userId = globalVariables.UserIDGet()
         val savedPos = dbHelper.getStatCardPosition(userId, id)
+
         if (savedPos != null) {
             offsetX = savedPos.first.toFloat()
             offsetY = savedPos.second.toFloat()
@@ -84,6 +91,13 @@ fun StatCardMovable(
                 change.consume()
                 offsetX += with(density) { dragAmount.x.toDp().value }
                 offsetY += with(density) { dragAmount.y.toDp().value }
+                if (offsetX < -75 )
+                    offsetX = -500f
+                if (offsetY< -75 )
+                    offsetY = -500f
+
+
+
             }
         }) {
         Box(
@@ -91,6 +105,7 @@ fun StatCardMovable(
             modifier = modifier
                 .width(width.dp)
                 .background(Color.Black, shape = RoundedCornerShape(16.dp))
+
 
         ) {
             if(averages == false) {
@@ -199,20 +214,12 @@ fun StatCardMovable(
 
 
                             )
-                            Text(
-                                text = "$batteryPCT%", fontSize = 14.sp,
-                                color = Color.White,
-                                fontWeight = FontWeight.Light,
-                                textAlign = TextAlign.Center,
-                                style = TextStyle(
 
-
-                                )
-                            )
                         }
                     }
                 }
             }
+
         }
     }
 }

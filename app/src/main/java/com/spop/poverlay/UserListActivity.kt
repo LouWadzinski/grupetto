@@ -42,15 +42,15 @@ class UserListActivity : ComponentActivity() {
     }
 
     private fun refreshUsers() {
-        val dbHelper = DBHelper(this)
-        val updatedList = getUsers(dbHelper)
+        val dbHelper = GrupettoApplication.getDbHelper()
+        val updatedList = getUsers( )
         users.clear()
         users.addAll(updatedList)
     }
 
     @Composable
     fun UserListScreen() {
-        val dbHelper = remember { DBHelper(this@UserListActivity) }
+        val dbHelper = remember { GrupettoApplication.getDbHelper() }
 
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             Row(
@@ -83,7 +83,7 @@ class UserListActivity : ComponentActivity() {
                     UserItem(
                         user = user,
                         onClick = {
-                            val gv = GlobalVariables(this@UserListActivity)
+                            val gv = GrupettoApplication.getGlobalVariables()
                             gv.UserIDSet(user.id)
                             gv.HRDeviceAddressSet(user.bleId ?: "")
                             gv.HRDeviceNameSet(user.bleName ?: "")
@@ -132,8 +132,8 @@ class UserListActivity : ComponentActivity() {
         }
     }
 
-    private fun getUsers(dbHelper: DBHelper): List<DBHelper.UserData> {
-        val db = dbHelper.readableDatabase
+    private fun getUsers( ): List<DBHelper.UserData> {
+        val db = GrupettoApplication.getDbHelper().readableDatabase
         val cursor = db.rawQuery("SELECT * FROM User", null)
         val usersList = mutableListOf<DBHelper.UserData>()
         while (cursor.moveToNext()) {

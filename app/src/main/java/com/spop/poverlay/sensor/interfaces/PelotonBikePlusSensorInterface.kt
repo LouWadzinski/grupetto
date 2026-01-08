@@ -2,6 +2,8 @@ package com.spop.poverlay.sensor.interfaces
 
 import android.content.Context
 import android.os.IBinder
+import android.os.Parcel
+import android.os.RemoteException
 import com.spop.poverlay.sensor.v2.BikePlusPowerSensor
 import com.spop.poverlay.sensor.v2.BikePlusResistanceSensor
 import com.spop.poverlay.sensor.v2.BikePlusRpmSensor
@@ -10,11 +12,13 @@ import com.spop.poverlay.util.windowed
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import timber.log.Timber
 import kotlin.coroutines.CoroutineContext
 
 class PelotonBikePlusSensorInterface(val context: Context) : SensorInterface, CoroutineScope {
-    companion object{
+    companion object {
         /**
          * Resistance is filtered with a moving window since it occasionally spikes
          * The last few resistance readings will grouped, and the lowest reading will be shown
@@ -23,6 +27,7 @@ class PelotonBikePlusSensorInterface(val context: Context) : SensorInterface, Co
          */
         const val ResistanceMovingAverageWindowSize = 3
     }
+
     private val binder = MutableSharedFlow<IBinder>(replay = 1)
 
     init {
@@ -53,6 +58,7 @@ class PelotonBikePlusSensorInterface(val context: Context) : SensorInterface, Co
             rpmSensor.sensorValue
         }
 
+
     override val resistance: Flow<Float>
         get() = binder.flatMapLatest {
             val resistanceSensor = BikePlusResistanceSensor(it)
@@ -64,5 +70,34 @@ class PelotonBikePlusSensorInterface(val context: Context) : SensorInterface, Co
                 // So take the least of the last few readings
                 readings.minOf { it }
             }
+
+
+
+
+
+    public fun setResistance2(resistance: Int) {
+
+        launch(Dispatchers.IO) {
+            try {
+
+                val iBinder = binder.first()
+                val _data = Parcel.obtain()
+                try {
+                    _data.writeInterfaceToken("com.onepeloton.affernetservice.IBikeInterface")
+                    _data.writeInt(resistance )
+                    iBinder.transact(7, _data, null, 1)
+                } finally {
+                    _data.recycle()
+                }
+
+
+            } catch (e: Exception) {
+                Timber.e(e, "failed to set resistance")
+            }
+
+
+        }
+    }
+
 
 }

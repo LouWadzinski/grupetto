@@ -1,6 +1,7 @@
 package com.spop.poverlay.overlay
 
 import android.app.Application
+import android.bluetooth.BluetoothProfile
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -17,7 +18,9 @@ import com.spop.poverlay.BLE.BleHeartRateManager
 import com.spop.poverlay.DataBase.DBHelper
 import com.spop.poverlay.DataBase.GlobalVariables
 import com.spop.poverlay.DataBase.TCX
+import com.spop.poverlay.GrupettoApplication
 import com.spop.poverlay.MainActivity
+import com.spop.poverlay.SimResistance
 
 import com.spop.poverlay.sensor.DeadSensorDetector
 import com.spop.poverlay.sensor.interfaces.SensorInterface
@@ -28,6 +31,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
@@ -42,7 +46,7 @@ private const val MphToKph = 1.60934
 
 enum class OverlayState {
     Minimized,
-    Main,
+   // Main,
     FullScreen
 
 
@@ -71,11 +75,17 @@ class OverlaySensorViewModel(
         const val GraphMaxDataPoints = 300
     }
 
+    var gv: GlobalVariables = GrupettoApplication.getGlobalVariables()
+
+    val simResistance = SimResistance(sensorInterface, context = getApplication(), this)
     private val mutableOverlayState = MutableStateFlow(OverlayState.FullScreen)
     val overlayState = mutableOverlayState.asStateFlow()
 
     private val mutableIsMinimized = MutableStateFlow(false)
     val isMinimized = mutableIsMinimized.asStateFlow()
+
+    private val mutablesimMode = MutableStateFlow(false)
+    var simMode = mutablesimMode.asStateFlow()
 
     private val mutableActivityDurationTime = MutableStateFlow("")
     val activityDurationTime = mutableActivityDurationTime.asStateFlow()
@@ -156,15 +166,14 @@ class OverlaySensorViewModel(
 
 
     //private val configurationRepository = ConfigurationRepository(application, this)
-    private val bleHeartRateManager = BleHeartRateManager(application)
+    private val bleHeartRateManager = GrupettoApplication.getHeartRateManager()
     private val bleFtmsServerManager = BleFtmsServerManager(application)
-
 
 
     private val antServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             //antChannelServiceComm = service as? ChannelService.ChannelServiceComm
-          //  antChannelServiceComm?.startBikeTransmitter()
+            //  antChannelServiceComm?.startBikeTransmitter()
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
@@ -186,10 +195,15 @@ class OverlaySensorViewModel(
         mutableErrorMessage.tryEmit(null)
     }
 
+    fun onClearStatCardPositions() {
+        val userId = gv.UserIDGet()
+        dbHelper.clearStatCardPositions(userId)
+    }
+
     fun onOverlayPressed() {
         mutableOverlayState.value = when (mutableOverlayState.value) {
-            OverlayState.FullScreen -> OverlayState.Main
-            OverlayState.Main -> OverlayState.Minimized
+            OverlayState.FullScreen -> OverlayState.Minimized
+           // OverlayState.Main -> OverlayState.Minimized
             OverlayState.Minimized -> OverlayState.FullScreen
 
         }
@@ -224,6 +238,10 @@ class OverlaySensorViewModel(
     }
 
     private var useMph = MutableStateFlow(true)
+
+    public var gear = MutableStateFlow(10)
+
+    public var grade = MutableStateFlow(0f)
 
     val powerValue = sensorInterface.power
         .map { "%.0f".format(it) }
@@ -262,7 +280,14 @@ class OverlaySensorViewModel(
         power.collect { value ->
             val powerInt = value.toInt()
             lastPower = powerInt
-           // antChannelServiceComm?.setPower(powerInt)
+            // antChannelServiceComm?.setPower(powerInt)
+
+        }
+    }
+
+    suspend fun observeResistance(resistance: Flow<Float>) {
+        resistance.collect { value ->
+            simResistance.targetResisitanceChanged(value)
 
         }
     }
@@ -277,6 +302,14 @@ class OverlaySensorViewModel(
         }
     }
 
+    fun setGear(gear: Int) {
+
+        this.gear.value = gear
+        simResistance.setGear(gear)
+
+
+    }
+
     var lastSpeed: Int = 0
     suspend fun observeSpeed(speed: Flow<Float>) {
         speed.collect { value ->
@@ -287,12 +320,13 @@ class OverlaySensorViewModel(
         }
     }
 
+    var dbHelper: DBHelper = GrupettoApplication.getDbHelper()
     fun onRecordClicked() {
         if (mutableRecordingState.value != RecordingState.Recording) {
             mutableRecordingState.value = RecordingState.Recording
 
 
-            var gv: GlobalVariables = GlobalVariables(getApplication())
+
             powerGraph.clear()
             powerGraphlarge.clear()
             cadenceGraph.clear()
@@ -316,7 +350,7 @@ class OverlaySensorViewModel(
             mutableactivityRevolutions.value = 0
             mutableactivityHeartBeats.value = 0
 
-            var dbHelper: DBHelper = DBHelper(getApplication())
+
             activityID = dbHelper.insertActivityHeader(
                 gv.UserIDGet().toInt(),
                 "New Activity",
@@ -399,41 +433,38 @@ class OverlaySensorViewModel(
 
                     if (lastPower > 0) {
 
+                        if (activityID > 0) {
+                            var elapsedTimeMS =
+                                (currentInstant - activityStartTime).inWholeMilliseconds
+                            dbHelper.insertActivityLine(
+                                activityID,
+                                unixTimeMillis,
+                                lastSpeed.toFloat(),
+                                mutableactivityDistance.value.toFloat(),
+                                lastCadence.toInt(),
+                                lastHeartRate,
+                                elapsedTimeMS.toInt(),
+                                lastPower
+                            )
 
-                        var elapsedTimeMS =
-                            (currentInstant - activityStartTime).inWholeMilliseconds
-                        dbHelper.insertActivityLine(
-                            activityID,
-                            unixTimeMillis,
-                            lastSpeed.toFloat(),
-                            mutableactivityDistance.value.toFloat(),
-                            lastCadence.toInt(),
-                            lastHeartRate,
-                            elapsedTimeMS.toInt(),
-                            lastPower
-                        )
+                            dbHelper.updateActivityHeader(
+                                activityID,
+                                distance = activityDistance.value.toFloat(),
+                                trackTime = mutableactivityDurationSeconds.value.toInt(),
+                                maxSpeed = mutableactivityMaxSpeed.value.toFloat(),
 
-                        dbHelper.updateActivityHeader(
-                            activityID,
-                            distance = activityDistance.value.toFloat(),
-                            trackTime = mutableactivityDurationSeconds.value.toInt(),
-                            maxSpeed = mutableactivityMaxSpeed.value.toFloat(),
-
-                            maxHeartRate = mutableactivityMaxHeartRate.value.toInt(),
-                            maxPower = mutableactivityMaxPower.value.toInt(),
-                            averageSpeed = mutableactivityAvgSpeed.value.toFloat(),
-                            time = 0,
-                            avgHeartRate = mutableactivityAvgHeartRate.value.toInt(),
-                            cadanceRevolutions = activityRevolutions.value.toInt(),
-                            avgSpinningCadance = mutableactivityAvgCadence.value.toInt(),
-                            avgPower = mutableactivityAvgPower.value.toInt(),
-                            maxCadence = mutableactivityMaxCadence.value.toInt(),
-                            calories = mutableactivityCalories.value.toInt()
-                        )
-
-
-                        //dbHelper.updateActivityHeader(activityID, distance = activityDistance.value.toFloat(),mutableactivityDurationSeconds.value.toInt()
-                        //    ,cadence = activityAvgCadence.value.toInt(),heartRate = activityAvgHeartRate.value.toInt())
+                                maxHeartRate = mutableactivityMaxHeartRate.value.toInt(),
+                                maxPower = mutableactivityMaxPower.value.toInt(),
+                                averageSpeed = mutableactivityAvgSpeed.value.toFloat(),
+                                time = 0,
+                                avgHeartRate = mutableactivityAvgHeartRate.value.toInt(),
+                                cadanceRevolutions = activityRevolutions.value.toInt(),
+                                avgSpinningCadance = mutableactivityAvgCadence.value.toInt(),
+                                avgPower = mutableactivityAvgPower.value.toInt(),
+                                maxCadence = mutableactivityMaxCadence.value.toInt(),
+                                calories = mutableactivityCalories.value.toInt()
+                            )
+                        }
 
                     }
 
@@ -545,7 +576,7 @@ class OverlaySensorViewModel(
             errorMessage.collect {
                 // Leave minimized state if we're showing an error message
                 if (it != null && mutableOverlayState.value == OverlayState.Minimized) {
-                    mutableOverlayState.value = OverlayState.Main
+                    mutableOverlayState.value = OverlayState.Minimized
                 }
             }
         }
@@ -553,20 +584,23 @@ class OverlaySensorViewModel(
         viewModelScope.launch {
 
 
-
-            val globalVariables = GlobalVariables(getApplication())
-            val hrd = globalVariables.HRDeviceAddressGet()
-
-            if (hrd != "1") {
-                bleHeartRateManager.connect(hrd)
-            } else {
-                bleHeartRateManager.disconnect()
-            }
+            val hrd = gv.HRDeviceAddressGet()
+            if (bleHeartRateManager.connectionState.value != BluetoothProfile.STATE_CONNECTED)
+                if (hrd != "1") {
+                    bleHeartRateManager.connect(hrd)
+                } else {
+                    bleHeartRateManager.disconnect()
+                }
 
         }
 
         viewModelScope.launch {
             observePower(sensorInterface.power)
+
+        }
+
+        viewModelScope.launch {
+            observeResistance(sensorInterface.resistance)
 
         }
 
@@ -583,19 +617,27 @@ class OverlaySensorViewModel(
         // Setup FTMS Server
         bleFtmsServerManager.onResistanceChanged = { resistance ->
             mutableBleResistance.tryEmit(resistance)
-            // Optionally update the bike's resistance directly
-           // sensorInterface.setResistance(resistance.toFloat(), getApplication())
+
         }
-        
+
+        var initialSimMode = false
+        bleFtmsServerManager.onControlPointChanged = { controlPoint ->
+
+            if (initialSimMode == false) {
+                mutablesimMode.value = true
+                initialSimMode = true
+            }
+            simResistance.setGrade(controlPoint.grade)
+            grade.value = controlPoint.grade.toFloat()
+
+        }
+
         viewModelScope.launch {
             bleFtmsServerManager.startAdvertising()
             launch { bleFtmsServerManager.observePower(sensorInterface.power) }
             launch { bleFtmsServerManager.observeCadence(sensorInterface.cadence) }
             launch { bleFtmsServerManager.observeSpeed(sensorInterface.speed) }
         }
-
-
-
 
 
     }
@@ -607,17 +649,17 @@ class OverlaySensorViewModel(
         getApplication<Application>().unbindService(antServiceConnection)
     }
 
-var res:Int = 57
+    var res: Int = 57
     fun onIncreaseResistance() {
         // Increments resistance by 1 and sends to the bike interface
         //sensorInterface.setResistance(lastResistance + 1f)
-        res +=1
-        sensorInterface.setResistance(res.toFloat(), getApplication())
+        res += 1
+        sensorInterface.setResistance(res, getApplication())
     }
 
     fun onDecreaseResistance() {
         // Decrements resistance by 1 (clamped to 0) and sends to the bike interface
         //sensorInterface.setResistance((lastResistance - 1f).coerceAtLeast(0f))
-        sensorInterface.setResistance(99f, getApplication())
+        sensorInterface.setResistance(99, getApplication())
     }
 }

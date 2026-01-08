@@ -13,6 +13,13 @@ class DBHelper(context: Context) :
         private const val DATABASE_VERSION = 3
     }
 
+     public fun closing()
+    {
+        db.close()
+    }
+
+    val db = this.writableDatabase
+
     override fun onCreate(db: SQLiteDatabase) {
         val CreateLap = " CREATE TABLE IF NOT EXISTS  ActivityHeader (  " +
                 "        ActivityHeaderID integer primary key autoincrement not null, " +
@@ -84,7 +91,7 @@ class DBHelper(context: Context) :
     }
 
     fun updateStatCardPosition(userId: Int, statCardId: Int, x: Int, y: Int) {
-        val db = this.writableDatabase
+
         val values = ContentValues().apply {
             put("UserID", userId)
             put("StatCardID", statCardId)
@@ -103,7 +110,7 @@ class DBHelper(context: Context) :
     }
 
     fun getStatCardPosition(userId: Int, statCardId: Int): Pair<Int, Int>? {
-        val db = this.readableDatabase
+
         val cursor = db.rawQuery(
             "SELECT x, y FROM StatCardPosition WHERE UserID = ? AND StatCardID = ?",
             arrayOf(userId.toString(), statCardId.toString())
@@ -120,12 +127,12 @@ class DBHelper(context: Context) :
     }
 
     fun clearStatCardPositions(userId: Int) {
-        val db = this.writableDatabase
+
         db.delete("StatCardPosition", "UserID = ?", arrayOf(userId.toString()))
     }
 
     fun insertActivityHeader(userID: Int?, title: String?, distance: Float?, trackTime: Int?, notes: String?, startTime: Long?, averageSpeed: Float?, maxSpeed: Float?, trackType: String?, time: Int?, avgHeartRate: Int?, maxHeartRate: Int?, cadanceRevolutions: Int?, avgMovingCadance: Int?, avgSpinningCadance: Int?, avgPower: Int?, maxPower: Int?): Long {
-        val db = this.writableDatabase
+
         val values = ContentValues().apply {
             put("UserID", userID); put("Title", title); put("Distance", distance); put("TrackTime", trackTime); put("Notes", notes); put("StartTime", startTime); put("AverageSpeed", averageSpeed); put("MaxSpeed", maxSpeed); put("TrackType", trackType); put("Time", time); put("AvgHeartRate", avgHeartRate); put("MaxHeartRate", maxHeartRate); put("CadanceRevolutions", cadanceRevolutions); put("AvgMovingCadance", avgMovingCadance); put("AvgSpinningCadance", avgSpinningCadance); put("AvgPower", avgPower); put("MaxPower", maxPower)
         }
@@ -133,7 +140,7 @@ class DBHelper(context: Context) :
     }
 
     fun updateActivityHeader(activityHeaderID: Int, distance: Float?, trackTime: Int?, averageSpeed: Float?, maxSpeed: Float?, time: Int?, avgHeartRate: Int?, maxHeartRate: Int?, cadanceRevolutions: Int?, avgSpinningCadance: Int?, avgPower: Int?, maxPower: Int?, maxCadence: Int?, calories: Int?): Int {
-        val db = this.writableDatabase
+
         val values = ContentValues().apply {
             put("Distance", distance); put("TrackTime", trackTime); put("AverageSpeed", averageSpeed); put("MaxSpeed", maxSpeed); put("Time", time); put("AvgHeartRate", avgHeartRate); put("MaxHeartRate", maxHeartRate); put("CadanceRevolutions", cadanceRevolutions); put("AvgSpinningCadance", avgSpinningCadance); put("AvgPower", avgPower); put("MaxPower", maxPower); put("MaxCadence", maxCadence); put("Calories", calories)
         }
@@ -141,7 +148,7 @@ class DBHelper(context: Context) :
     }
 
     fun insertActivityLine(activityHeaderID: Int, time: Long, speed: Float?, distance: Float?, cadance: Int?, heartRate: Int?, elapsedTime: Int?, power: Int?): Long {
-        val db = this.writableDatabase
+
         val values = ContentValues().apply {
             put("ActivityHeaderID", activityHeaderID); put("Time", time); put("Speed", speed); put("Distance", distance); put("Cadance", cadance); put("HeartRate", heartRate); put("ElapsedTime", elapsedTime); put("Power", power)
         }
@@ -149,31 +156,31 @@ class DBHelper(context: Context) :
     }
 
     fun insertUser(username: String?, bleID: String?, bleName: String?): Long {
-        val db = this.writableDatabase
+
         val values = ContentValues().apply { put("Username", username); put("BLEid", bleID); put("BLEName", bleName) }
         return db.insert("User", null, values)
     }
 
     fun updateUser(userID: Int, username: String?, bleID: String?, bleName: String?): Int {
-        val db = this.writableDatabase
+
         val values = ContentValues().apply { put("Username", username); put("BLEid", bleID); put("BLEName", bleName) }
         return db.update("User", values, "UserID = ?", arrayOf(userID.toString()))
     }
 
     fun updateHeartRateDeviceID(userID: Int, bleID: String?  ):Int {
-        val db = this.writableDatabase
+
         val values = ContentValues().apply { put("BLEid", bleID)  }
         return db.update("User", values, "UserID = ?", arrayOf(userID.toString()))
     }
 
     fun updateHeartRateDeviceName(userID: Int, bleName: String?  ):Int {
-        val db = this.writableDatabase
+
         val values = ContentValues().apply { put("BLEName", bleName)  }
         return db.update("User", values, "UserID = ?", arrayOf(userID.toString()))
     }
 
     fun deleteUser(userID: Int): Int {
-        val db = this.writableDatabase
+
         db.beginTransaction()
         try {
             db.execSQL("DELETE FROM StatCardPosition WHERE UserID  = ?", arrayOf(userID.toString()))
@@ -189,7 +196,7 @@ class DBHelper(context: Context) :
     }
 
     fun deleteActivity(activityHeaderID: Int): Int {
-        val db = this.writableDatabase
+
         db.beginTransaction()
         try {
             db.delete("ActivityLine", "ActivityHeaderID = ?", arrayOf(activityHeaderID.toString()))
@@ -202,7 +209,7 @@ class DBHelper(context: Context) :
     }
 
     fun getUser(userID: Int): UserData? {
-        val db = this.readableDatabase
+
         val cursor = db.rawQuery("SELECT * FROM User WHERE UserID = ?", arrayOf(userID.toString()))
         var user: UserData? = null
         if (cursor.moveToFirst()) {
@@ -218,7 +225,7 @@ class DBHelper(context: Context) :
     }
 
     fun getUserCount(): Int {
-        val db = this.readableDatabase
+
         val cursor = db.rawQuery("SELECT COUNT(*) FROM User", null)
         var count = 0
         if (cursor.moveToFirst()) { count = cursor.getInt(0) }

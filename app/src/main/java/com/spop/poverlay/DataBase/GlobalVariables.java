@@ -3,6 +3,7 @@ package com.spop.poverlay.DataBase;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
+
 import com.spop.poverlay.DataBase.DBHelper;
 
 
@@ -13,9 +14,13 @@ public class GlobalVariables {
     SharedPreferences sharedPreferences;
 
 
-    public GlobalVariables(Context c) {
+    DBHelper dbHelper;
+
+
+    public GlobalVariables(Context c, DBHelper db) {
 
         context = c;
+          dbHelper = db;
         sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context);
 
 
@@ -23,8 +28,9 @@ public class GlobalVariables {
 
 
     public String HRDeviceNameGet() {
-        DBHelper dbHelper = new DBHelper(context);
-        DBHelper.UserData  data = dbHelper.getUser(UserIDGet());
+
+
+        DBHelper.UserData data = dbHelper.getUser(UserIDGet());
 
         String ret = data.getBleName();
         return ret;
@@ -35,8 +41,8 @@ public class GlobalVariables {
     }
 
     public String CurrentUserNameGet() {
-        DBHelper dbHelper = new DBHelper(context);
-        DBHelper.UserData  data = dbHelper.getUser(UserIDGet());
+
+        DBHelper.UserData data = dbHelper.getUser(UserIDGet());
 
         String ret = data.getUsername();
         return ret;
@@ -45,8 +51,8 @@ public class GlobalVariables {
 
     public String HRDeviceAddressGet() {
 
-        DBHelper dbHelper = new DBHelper(context);
-        DBHelper.UserData  data = dbHelper.getUser(UserIDGet());
+
+        DBHelper.UserData data = dbHelper.getUser(UserIDGet());
 
         String ret = data.getBleId();
         return ret;
@@ -67,21 +73,18 @@ public class GlobalVariables {
     }
 
 
-
     public void HRDeviceAddressSet(String value) {
 
-        DBHelper dbHelper = new DBHelper(context);
-        dbHelper.updateHeartRateDeviceID( UserIDGet(),  value);
+
+        dbHelper.updateHeartRateDeviceID(UserIDGet(), value);
 
 
     }
 
     public void HRDeviceNameSet(String value) {
 
-        DBHelper dbHelper = new DBHelper(context);
-        dbHelper.updateHeartRateDeviceName( UserIDGet(),  value);
+        dbHelper.updateHeartRateDeviceName(UserIDGet(), value);
     }
-
 
 
 }

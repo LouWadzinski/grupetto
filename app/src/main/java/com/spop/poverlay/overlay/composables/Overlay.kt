@@ -56,6 +56,7 @@ fun Overlay(
     onTimerLayout: (IntSize) -> Unit
 ) {
     val power by sensorViewModel.powerValue.collectAsStateWithLifecycle(initialValue = SensorValuePlaceholderText)
+    val gear by sensorViewModel.gear.collectAsStateWithLifecycle(initialValue = SensorValuePlaceholderText)
     val heartRateGraphLarge = remember { sensorViewModel.heartRateGraph }
     val powerGraphLarge = remember { sensorViewModel.powerGraphlarge }
     val powerGraph = remember { sensorViewModel.powerGraph }
@@ -65,7 +66,7 @@ fun Overlay(
     val speed by sensorViewModel.speedValue.collectAsStateWithLifecycle(initialValue = SensorValuePlaceholderText)
     val speedLabel by sensorViewModel.speedLabel.collectAsStateWithLifecycle(initialValue = "")
     val heartRate by sensorViewModel.heartRate.collectAsStateWithLifecycle(initialValue = SensorValuePlaceholderText)
-
+    val simMode by sensorViewModel.simMode.collectAsStateWithLifecycle(initialValue = false)
     val activityAvgHeartRate by sensorViewModel.activityAvgHeartRate.collectAsStateWithLifecycle(
         initialValue = 0
     )
@@ -185,7 +186,7 @@ fun Overlay(
             activityAvgCadence = activityAvgCadence.toString(),
             activityAvgSpeed = String.format(Locale.ROOT, "%.1f", activityAvgSpeed),
             activityDistance = String.format(Locale.ROOT, "%.1f", activityDistance),
- activityCalories = activityCalories.toString(),
+            activityCalories = activityCalories.toString(),
             activityMaxPower = activityMaxPower.toString(),
             activityMaxCadence = activityMaxCadence.toString(),
             activityMaxHeartRate = activityMaxHeartRate.toString(),
@@ -193,7 +194,9 @@ fun Overlay(
             pauseChart = isCurrentlyAnimating,
             recordingState = recordingState,
             activityDurationTime = activityDurationTime,
-
+            gear = sensorViewModel.gear.value,
+            grade = String.format(Locale.ROOT, "%.1f",sensorViewModel.grade.value ),
+            simMode = simMode,
             onSpeedClicked = { sensorViewModel.onClickedSpeed() },
             onChartClicked = { sensorViewModel.onOverlayPressed() },
             onRecordClicked = { sensorViewModel.onRecordClicked() },
@@ -204,7 +207,10 @@ fun Overlay(
             onExitToHomeScreen = { sensorViewModel.onExitToHomeScreen() },
             onIncreaseResistance = { sensorViewModel.onIncreaseResistance() },
             onDecreaseResistance = { sensorViewModel.onDecreaseResistance() },
-            batteryPCT = sensorViewModel.heartRateBatteryLevel.value.toString()
+            onGearChanged = { newGear -> sensorViewModel.setGear(newGear) },
+            batteryPCT = sensorViewModel.heartRateBatteryLevel.value.toString(),
+            onClearStatCardPositions = { sensorViewModel.onClearStatCardPositions() }
+
         )
 
 
@@ -355,7 +361,7 @@ fun Overlay(
             }
 
         }
-
+/*
         OverlayState.Main -> {
             Box(
                 modifier = Modifier
@@ -402,7 +408,7 @@ fun Overlay(
                 }
             }
         }
-
+*/
 
     }
 

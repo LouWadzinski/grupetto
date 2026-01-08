@@ -82,7 +82,7 @@ class UserConfigurationActivity : ComponentActivity() {
     @SuppressLint("MissingPermission")
     @Composable
     fun UserConfigurationScreen(userId: Int) {
-        val dbHelper = remember { DBHelper(this) }
+        val dbHelper = remember { GrupettoApplication.getDbHelper() }
         var username by remember { mutableStateOf("") }
         var bleId by remember { mutableStateOf("") }
         var bleName by remember { mutableStateOf("") }

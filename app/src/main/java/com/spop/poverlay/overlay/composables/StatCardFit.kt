@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 
 import androidx.compose.foundation.layout.Arrangement
+import com.spop.poverlay.GrupettoApplication
 
 
 @Composable
@@ -47,8 +48,8 @@ fun StatCardFit(
     modifier: Modifier
 ) {
     val context = LocalContext.current
-    val dbHelper = remember { DBHelper(context) }
-    val globalVariables = remember { GlobalVariables(context) }
+    val dbHelper = remember { GrupettoApplication.getDbHelper() }
+    val globalVariables = remember {  GrupettoApplication.getGlobalVariables() }
     val density = LocalDensity.current
 
     var offsetX by remember { mutableStateOf(offsetx.toFloat()) }

@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.*
 
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import com.spop.poverlay.GrupettoApplication
 
 import java.util.*
 
@@ -30,7 +31,7 @@ public class TCX {
 
     public fun exportToTcx(activityID: Int, context: Context): String {
 
-        dbHelper = DBHelper(context)
+        dbHelper = GrupettoApplication.getDbHelper()
 
         val header = getActivityHeader(dbHelper, activityID)
 

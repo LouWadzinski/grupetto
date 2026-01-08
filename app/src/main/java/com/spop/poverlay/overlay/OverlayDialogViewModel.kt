@@ -8,6 +8,7 @@ import androidx.compose.ui.unit.IntSize
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlin.math.abs
 import kotlin.math.ceil
 
@@ -91,6 +92,15 @@ class OverlayDialogViewModel(
         val (_, currentHeight) = dialogSizeParams.value
         dialogSizeParams.value = size.width to currentHeight
     }
+
+
+     private val _currentGear = MutableStateFlow(1)
+
+
+    val currentGear: StateFlow<Int> = _currentGear.asStateFlow()
+
+
+
 
     fun onTimerOverlayLayout(size : IntSize){
         horizontalDragScreenRange = calculateHorizontalDragScreenRange(size.width)

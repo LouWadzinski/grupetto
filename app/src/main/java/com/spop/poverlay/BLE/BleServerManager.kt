@@ -30,7 +30,7 @@ import android.os.Handler
 import android.os.Looper
 import java.util.Timer
 import java.util.TimerTask
-
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.measureTime
 
 class BleServerManager(private val context: Context) {
@@ -137,6 +137,7 @@ class BleServerManager(private val context: Context) {
 
     @SuppressLint("MissingPermission")
     @OptIn(ExperimentalTime::class)
+
     private fun postCadence(cadenceInt: Int) {
         if (registeredDevices.isEmpty()) return
 
@@ -163,9 +164,9 @@ class BleServerManager(private val context: Context) {
 
             if (msPastTDC > 0)
 
-                lastTDCInstant = currentInstant - Duration.milliseconds(
-                    msPastTDC
-                )
+                lastTDCInstant = currentInstant -
+                    msPastTDC.milliseconds
+
 
 
             /// calculate the difference between the starting time and the last TDC

@@ -238,7 +238,7 @@ class OverlayService : LifecycleEnabledService() {
                 overlayParams.y = origin.y.roundToInt()
                 overlayParams.flags = DefaultOverlayFlags or overlayFlags
                 overlayParams.gravity = when (overlayState) {
-                    OverlayState.Main -> gravity
+                    //OverlayState.Main -> gravity
                     OverlayState.Minimized -> gravity
                     OverlayState.FullScreen -> 49
                 }
@@ -248,7 +248,7 @@ class OverlayService : LifecycleEnabledService() {
                     width
                 }
                 overlayParams.height = when (overlayState) {
-                    OverlayState.Main -> height
+                    //OverlayState.Main -> height
                     OverlayState.Minimized -> mHeight
                     OverlayState.FullScreen -> screenSize.height.toInt()
                 }

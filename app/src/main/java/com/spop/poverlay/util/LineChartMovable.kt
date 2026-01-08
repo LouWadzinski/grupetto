@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 
 import com.spop.poverlay.DataBase.DBHelper
 import com.spop.poverlay.DataBase.GlobalVariables
+import com.spop.poverlay.GrupettoApplication
 
 @Composable
 fun LineChartMovable(
@@ -57,14 +58,14 @@ fun LineChartMovable(
 
 
     val context = LocalContext.current
-    val dbHelper = remember { DBHelper(context) }
-    val globalVariables = remember { GlobalVariables(context) }
+    val dbHelper = remember { GrupettoApplication.getDbHelper() }
+    val globalVariables = remember { GrupettoApplication.getGlobalVariables() }
     val density = LocalDensity.current
 
     var offsetX by remember { mutableStateOf(offsetx.toFloat()) }
     var offsetY by remember { mutableStateOf(offsety.toFloat()) }
 
-
+/*
     LaunchedEffect(id) {
         val userId = globalVariables.UserIDGet()
         val savedPos = dbHelper.getStatCardPosition(userId, id)
@@ -76,10 +77,11 @@ fun LineChartMovable(
             offsetY = offsety.toFloat()
         }
     }
-
+*/
     Box(
         modifier = Modifier
             .offset(offsetX.dp, offsetY.dp)
+            /*
             .pointerInput(Unit) {
                 detectDragGestures(
                     onDragEnd = {
@@ -96,7 +98,8 @@ fun LineChartMovable(
                     offsetX += with(density) { dragAmount.x.toDp().value }
                     offsetY += with(density) { dragAmount.y.toDp().value }
                 }
-            }) {
+            }*/
+    ) {
         Box(
             contentAlignment = Alignment.Center,
             modifier = modifier

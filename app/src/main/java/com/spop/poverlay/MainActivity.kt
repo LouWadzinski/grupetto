@@ -45,9 +45,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val dbHelper = DBHelper(this)
+        val dbHelper = GrupettoApplication.getDbHelper()
         val userCount = dbHelper.getUserCount()
-        val gv = GlobalVariables(this)
+        val gv = GrupettoApplication.getGlobalVariables()
 
         if (userCount == 0) {
             val newUserId = dbHelper.insertUser("Default User", "", "")
@@ -55,7 +55,8 @@ class MainActivity : ComponentActivity() {
                 putExtra("USER_ID", newUserId.toInt())
             }
             startActivity(intent)
-        } else if (userCount == 1) {
+        }
+        if (userCount == 1) {
             val user = dbHelper.getUser(1) // Assuming ID 1 for single user setup
             if (user != null) {
                 gv.UserIDSet(user.id)
@@ -81,9 +82,7 @@ class MainActivity : ComponentActivity() {
         viewModel.requestRestart.observe(this) {
             restartGrupetto()
         }
-        viewModel.openHistory.observe(this) {
-            startActivity(Intent(this, HistoryActivity::class.java))
-        }
+
         viewModel.openUserList.observe(this) {
             startActivity(Intent(this, UserListActivity::class.java))
         }
