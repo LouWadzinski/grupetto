@@ -38,7 +38,7 @@ import java.util.Locale
 
 class ConfigurationViewModel(
     application: Application,
-    private val configurationRepository: ConfigurationRepository,
+
     private val releaseChecker: ReleaseChecker
 ) : AndroidViewModel(application) {
 
@@ -54,8 +54,6 @@ class ConfigurationViewModel(
     // Map of release names to if they're the currently installed one
     var latestRelease = mutableStateOf<Release?>(null)
 
-    val showTimerWhenMinimized
-        get() = configurationRepository.showTimerWhenMinimized
 
 
     val gv = GlobalVariables(getApplication(), dbHelper)
@@ -102,9 +100,7 @@ class ConfigurationViewModel(
         }
     }
 
-    fun onShowTimerWhenMinimizedClicked(isChecked: Boolean) {
-        configurationRepository.setShowTimerWhenMinimized(isChecked)
-    }
+
 
 
 

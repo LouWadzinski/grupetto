@@ -131,7 +131,7 @@ class BleFtmsServerManager(private val context: Context ) {
 
         flags = flags or (1 shl 2) // Instantaneous Cadence
         flags = flags or (1 shl 6) // Instantaneous Power
-        flags = flags or (1 shl 10) // Heart Rate present (Bit 10)
+        //flags = flags or (1 shl 10) // Heart Rate present (Bit 10)
 
 
         val data = mutableListOf<Byte>()

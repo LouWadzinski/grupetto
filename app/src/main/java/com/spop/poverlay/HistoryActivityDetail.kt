@@ -1,5 +1,6 @@
 package com.spop.poverlay
 
+import android.Manifest
 import android.content.ContentValues
 import android.content.Context
 import android.content.pm.PackageManager
@@ -8,6 +9,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -35,8 +37,18 @@ import java.io.File
 import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.*
-
+import com.mahmoud.composecharts.dpToPx
+import com.mahmoud.composecharts.ui.theme.*
 import com.spop.poverlay.util.LineChartFull
+
+import com.mahmoud.composecharts.barchart.BarChartEntity
+import com.mahmoud.composecharts.ChartElements
+import com.mahmoud.composecharts.barchart.BarChart
+import com.mahmoud.composecharts.textUnitToPx
+import androidx.compose.material3.Text
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.ui.unit.sp
+import com.spop.poverlay.ui.theme.SkyBlue
 
 
 class HistoryActivityDetail : ComponentActivity() {
@@ -44,11 +56,14 @@ class HistoryActivityDetail : ComponentActivity() {
 
     private var activityHeaderId: Int = -1
 
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         activityHeaderId = intent.getIntExtra("ACTIVITY_HEADER_ID", -1)
 
 
+        getPowerBarChartDatalist()
+        getHRBarChartDatalist()
 
 
         setContent {
@@ -77,6 +92,7 @@ class HistoryActivityDetail : ComponentActivity() {
     @Composable
     @Preview
     fun ActivityDetailScreen(headerId: Int) {
+
         val dbHelper = remember { GrupettoApplication.getDbHelper() }
         var activityData by remember { mutableStateOf<ActivityHeaderData?>(null) }
         var lineData by remember { mutableStateOf<ActivityLineData?>(null) }
@@ -177,12 +193,12 @@ class HistoryActivityDetail : ComponentActivity() {
                                 if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
                                     if (ContextCompat.checkSelfPermission(
                                             this@HistoryActivityDetail,
-                                            android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+                                            Manifest.permission.WRITE_EXTERNAL_STORAGE
                                         ) == PackageManager.PERMISSION_GRANTED
                                     ) {
                                         exportToTcx(data, fullLineData)
                                     } else {
-                                        launcher.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                                        launcher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
                                     }
                                 } else {
                                     exportToTcx(data, fullLineData)
@@ -249,9 +265,9 @@ class HistoryActivityDetail : ComponentActivity() {
 
 
 
-                        Text("Avg Speed: ${"%.1f".format(data.averageSpeed)}")
+                      //  Text("Avg Speed: ${"%.1f".format(data.averageSpeed)}")
 
-                        Text("Max Speed: ${"%.1f".format(data.maxSpeed)}")
+                      //  Text("Max Speed: ${"%.1f".format(data.maxSpeed)}")
 
                     }
 
@@ -300,6 +316,7 @@ class HistoryActivityDetail : ComponentActivity() {
                         130f,
                         average = data.avgSpinningCadance.toFloat()
                     )
+                    /*
                     ChartSection(
                         "Speed Avg = ${"%.1f".format(data.averageSpeed)} Max = ${
                             "%.1f".format(
@@ -311,10 +328,139 @@ class HistoryActivityDetail : ComponentActivity() {
                         data.maxSpeed,
                         average = data.averageSpeed.toFloat()
                     )
+
+                     */
+                }
+                Row() {
+                    Box(
+                        modifier = Modifier
+                            .width(400.dp)
+                            .height(800.dp)
+                    ) {
+                        Text("Power Distribution")
+                        BarChart(
+                            modifier = Modifier.width(400.dp).height(225.dp).padding(top = 200.dp),
+                            barChartData = barChartData,
+                            verticalAxisValues = verticalAxisValues,
+                            axisColor = Color.Red,
+                            verticalAxisLabelColor = Color.Transparent,
+                            verticalAxisLabelFontSize = 15.sp,
+                            horizontalAxisLabelColor = SkyBlue,
+                            horizontalAxisLabelFontSize = 24.sp,
+                            paddingBetweenBars = 8.dp,
+                            isShowVerticalAxis = false,
+                            isShowHorizontalLines = false,
+                        )
+                    }
+                    if (hrBarChartData.isNotEmpty())
+                        Box(
+                            modifier = Modifier
+                                .width(400.dp)
+                                .height(800.dp)
+                        ) {
+                            Text("Heart Rate Distribution")
+                            BarChart(
+                                modifier = Modifier.width(400.dp).height(225.dp).padding(top = 200.dp),
+                                barChartData = hrBarChartData,
+                                verticalAxisValues = verticalAxisValues,
+                                axisColor = Color.Red,
+                                verticalAxisLabelColor = Color.Transparent,
+                                verticalAxisLabelFontSize = 15.sp,
+                                horizontalAxisLabelColor = SkyBlue,
+                                horizontalAxisLabelFontSize = 24.sp,
+                                paddingBetweenBars = 16.dp,
+                                isShowVerticalAxis = false,
+                                isShowHorizontalLines = false,
+                            )
+                        }
                 }
             }
         }
     }
+
+    var powerBarChartCount: Int = 0
+    fun getPowerBarChartDatalist() {
+        if (barChartData.isNotEmpty()) {
+            barChartData.clear()
+        }
+        val db = GrupettoApplication.getDbHelper().readableDatabase
+        val cursor = db.rawQuery(
+            "SELECT Round(Power / 25 ,0) * 25 as Power,   sum( Time ) FROM ActivityLine WHERE ActivityHeaderID = ? GROUP BY Round(Power / 25 ,0) ORDER BY Power ASC",
+            arrayOf(activityHeaderId.toString())
+        )
+        powerBarChartCount = cursor.count
+        var max = 0f
+        while (cursor.moveToNext()) {
+            if (cursor.getFloat(1) > max)
+                max = cursor.getFloat(1)
+        }
+        cursor.moveToFirst()
+        while (cursor.moveToNext()) {
+            var label = cursor.getInt(0) % 100
+            if (cursor.getInt(0) % 100 == 0)
+                barChartData.add(
+                    BarChartEntity(
+                        cursor.getFloat(1) / max,
+                        Color.Green,
+                        cursor.getString(0)
+                    )
+                )
+            else
+                barChartData.add(BarChartEntity(cursor.getFloat(1) / max, Color.Green, ""))
+
+        }
+
+
+
+
+        cursor.close()
+    }
+
+    var hrBarChartCount: Int = 0
+    fun getHRBarChartDatalist() {
+        if (hrBarChartData.isNotEmpty()) {
+            hrBarChartData.clear()
+        }
+        val db = GrupettoApplication.getDbHelper().readableDatabase
+        val cursor = db.rawQuery(
+            "SELECT HeartRate,   sum( Time ) FROM ActivityLine WHERE ActivityHeaderID = ? GROUP BY HeartRate ORDER BY HeartRate ASC",
+            arrayOf(activityHeaderId.toString())
+        )
+        hrBarChartCount = cursor.count
+        var max = 0f
+        while (cursor.moveToNext()) {
+            if (cursor.getFloat(1) > max)
+                max = cursor.getFloat(1)
+        }
+        cursor.moveToFirst()
+        while (cursor.moveToNext()) {
+
+            if (cursor.getInt(0) % 25 == 0)
+                hrBarChartData.add(
+                    BarChartEntity(
+                        cursor.getFloat(1) / max,
+                        Color.Red,
+                        cursor.getString(0)
+                    )
+                )
+            else
+                hrBarChartData.add(BarChartEntity(cursor.getFloat(1) / max, Color.Red, ""))
+
+        }
+
+
+
+
+        cursor.close()
+    }
+
+    val cadenceGraph = mutableStateListOf<Float>()
+    val barChartData = mutableStateListOf<BarChartEntity>()
+    val hrBarChartData = mutableStateListOf<BarChartEntity>()
+
+
+    val verticalAxisValues = listOf(0.0f, 1.0f)
+
 
     val MphToKph = 1.60934
 
@@ -347,8 +493,8 @@ class HistoryActivityDetail : ComponentActivity() {
     }
 
     private fun updateActivityHeader(dbHelper: DBHelper, id: Int, title: String, notes: String) {
-        val db = GrupettoApplication.getDbHelper() .writableDatabase
-       // val db = dbHelper.writableDatabase
+        val db = GrupettoApplication.getDbHelper().writableDatabase
+        // val db = dbHelper.writableDatabase
         val values = ContentValues().apply {
             put("Title", title)
             put("Notes", notes)

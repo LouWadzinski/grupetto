@@ -46,16 +46,20 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         val dbHelper = GrupettoApplication.getDbHelper()
-        val userCount = dbHelper.getUserCount()
+        var userCount = dbHelper.getUserCount()
         val gv = GrupettoApplication.getGlobalVariables()
 
         if (userCount == 0) {
             val newUserId = dbHelper.insertUser("Default User", "", "")
+            /*
             val intent = Intent(this, UserConfigurationActivity::class.java).apply {
                 putExtra("USER_ID", newUserId.toInt())
             }
             startActivity(intent)
+
+             */
         }
+         userCount = dbHelper.getUserCount()
         if (userCount == 1) {
             val user = dbHelper.getUser(1) // Assuming ID 1 for single user setup
             if (user != null) {
@@ -70,7 +74,7 @@ class MainActivity : ComponentActivity() {
 
         viewModel =
             ConfigurationViewModel(
-                application, ConfigurationRepository(applicationContext, this),
+                application,
                 ReleaseChecker()
             )
         viewModel.finishActivity.observe(this) {

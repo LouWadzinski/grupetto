@@ -2,62 +2,40 @@ package com.spop.poverlay.overlay
 
 import android.app.Application
 import android.bluetooth.BluetoothProfile
-import android.content.ComponentName
-import android.content.Context
-import android.content.Intent
-import android.content.ServiceConnection
-import android.os.IBinder
-import android.preference.PreferenceManager
-import android.util.Log
 import android.widget.Toast
 import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.spop.poverlay.BLE.BleFtmsServerManager
-import com.spop.poverlay.BLE.BleHeartRateManager
+import com.spop.poverlay.BLE.BleServerManager
 import com.spop.poverlay.DataBase.DBHelper
 import com.spop.poverlay.DataBase.GlobalVariables
 import com.spop.poverlay.DataBase.TCX
 import com.spop.poverlay.GrupettoApplication
-import com.spop.poverlay.MainActivity
 import com.spop.poverlay.SimResistance
 
 import com.spop.poverlay.sensor.DeadSensorDetector
 import com.spop.poverlay.sensor.interfaces.SensorInterface
-import com.spop.poverlay.util.smoothSensorValue
-import com.spop.poverlay.util.tickerFlow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
-import kotlin.time.Duration.Companion.milliseconds
 
 
 private const val MphToKph = 1.60934
 
-enum class OverlayState {
-    Minimized,
-   // Main,
-    FullScreen
-
-
-}
 
 enum class RecordingState {
     Recording,
     Stopped,
-
     Confirm
-
 }
 
 class OverlaySensorViewModel(
@@ -68,9 +46,6 @@ class OverlaySensorViewModel(
 ) : AndroidViewModel(application) {
 
     companion object {
-        // The sensor does not necessarily return new value this quickly
-        val GraphUpdatePeriod = 200.milliseconds
-
         // Max number of points before data starts to shift
         const val GraphMaxDataPoints = 300
     }
@@ -78,16 +53,18 @@ class OverlaySensorViewModel(
     var gv: GlobalVariables = GrupettoApplication.getGlobalVariables()
 
     val simResistance = SimResistance(sensorInterface, context = getApplication(), this)
-    private val mutableOverlayState = MutableStateFlow(OverlayState.FullScreen)
-    val overlayState = mutableOverlayState.asStateFlow()
 
-    private val mutableIsMinimized = MutableStateFlow(false)
-    val isMinimized = mutableIsMinimized.asStateFlow()
+    var dbHelper: DBHelper = GrupettoApplication.getDbHelper()
+
 
     private val mutablesimMode = MutableStateFlow(false)
     var simMode = mutablesimMode.asStateFlow()
 
-    private val mutableActivityDurationTime = MutableStateFlow("")
+    public val mutableLockControls = MutableStateFlow(false)
+    var lockControls = mutableLockControls.asStateFlow()
+
+
+    private val mutableActivityDurationTime = MutableStateFlow("-")
     val activityDurationTime = mutableActivityDurationTime.asStateFlow()
 
     private val mutableErrorMessage = MutableStateFlow<String?>(null)
@@ -96,8 +73,8 @@ class OverlaySensorViewModel(
     private val mutableRecordingState = MutableStateFlow(RecordingState.Stopped)
     val recordingState = mutableRecordingState.asStateFlow()
 
-    private val mutableShowStopConfirmDialog = MutableStateFlow(false)
-    val showStopConfirmDialog = mutableShowStopConfirmDialog.asStateFlow()
+    private val mutableAlpha = MutableStateFlow(1f)
+    val alpha = mutableAlpha.asStateFlow()
 
     private var timerJob: Job? = null
     private var timerJobGraph: Job? = null
@@ -165,21 +142,15 @@ class OverlaySensorViewModel(
     val heartRateBatteryLevel = mutableHeartRateBatteryLevel.asStateFlow()
 
 
-    //private val configurationRepository = ConfigurationRepository(application, this)
     private val bleHeartRateManager = GrupettoApplication.getHeartRateManager()
     private val bleFtmsServerManager = BleFtmsServerManager(application)
+    private val bleServerManager = BleServerManager(application)
 
+    val powerGraph = mutableStateListOf<Float>()
+    val powerGraphlarge = mutableStateListOf<Float>()
+    val cadenceGraph = mutableStateListOf<Float>()
+    val heartRateGraph = mutableStateListOf<Float>()
 
-    private val antServiceConnection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-            //antChannelServiceComm = service as? ChannelService.ChannelServiceComm
-            //  antChannelServiceComm?.startBikeTransmitter()
-        }
-
-        override fun onServiceDisconnected(name: ComponentName?) {
-
-        }
-    }
 
     var lastHeartRate: Int = 0
     val heartRate = bleHeartRateManager.heartRate.map {
@@ -191,35 +162,16 @@ class OverlaySensorViewModel(
         } else "-"
     }
 
-    fun onDismissErrorPressed() {
-        mutableErrorMessage.tryEmit(null)
+    fun updateAlpha(alpha: Float) {
+        mutableAlpha.tryEmit(alpha)
     }
+
 
     fun onClearStatCardPositions() {
         val userId = gv.UserIDGet()
         dbHelper.clearStatCardPositions(userId)
     }
 
-    fun onOverlayPressed() {
-        mutableOverlayState.value = when (mutableOverlayState.value) {
-            OverlayState.FullScreen -> OverlayState.Minimized
-           // OverlayState.Main -> OverlayState.Minimized
-            OverlayState.Minimized -> OverlayState.FullScreen
-
-        }
-        if (overlayState.value == OverlayState.Minimized) {
-            mutableIsMinimized.value = true
-        } else {
-            mutableIsMinimized.value = false
-        }
-    }
-
-    fun onOverlayDoubleTap() {
-        getApplication<Application>().apply {
-            val intent = Intent(this, MainActivity::class.java)
-            startActivity(intent)
-        }
-    }
 
     private fun onDeadSensor() {
         mutableErrorMessage
@@ -231,9 +183,6 @@ class OverlaySensorViewModel(
     }
 
     fun onExitToHomeScreen() {
-
-
-        //onOverlayDoubleTap()
         onExit()
     }
 
@@ -261,26 +210,14 @@ class OverlaySensorViewModel(
         }
         "%.1f".format(value)
     }
-    val speedLabel = useMph.map {
-        if (it) {
-            "mph"
-        } else {
-            "kph"
-        }
-    }
 
-    fun onClickedSpeed() {
-        viewModelScope.launch {
-            useMph.emit(!useMph.value)
-        }
-    }
 
     var lastPower: Int = 0
     suspend fun observePower(power: Flow<Float>) {
         power.collect { value ->
             val powerInt = value.toInt()
             lastPower = powerInt
-            // antChannelServiceComm?.setPower(powerInt)
+
 
         }
     }
@@ -297,17 +234,12 @@ class OverlaySensorViewModel(
         cadence.collect { value ->
             val cadenceInt = value.toInt()
             lastCadence = cadenceInt
-            //antChannelServiceComm?.setCadence(cadenceInt)
-
         }
     }
 
     fun setGear(gear: Int) {
-
         this.gear.value = gear
         simResistance.setGear(gear)
-
-
     }
 
     var lastSpeed: Int = 0
@@ -315,17 +247,14 @@ class OverlaySensorViewModel(
         speed.collect { value ->
             val speedInt = value.toInt()
             lastSpeed = speedInt
-            //antChannelServiceComm?.setSpeed(value.toDouble())
 
         }
     }
 
-    var dbHelper: DBHelper = GrupettoApplication.getDbHelper()
+
     fun onRecordClicked() {
-        if (mutableRecordingState.value != RecordingState.Recording) {
+        if (mutableRecordingState.value == RecordingState.Stopped) {
             mutableRecordingState.value = RecordingState.Recording
-
-
 
             powerGraph.clear()
             powerGraphlarge.clear()
@@ -340,8 +269,6 @@ class OverlaySensorViewModel(
                 cadenceGraph.add(80f)
                 heartRateGraph.add(80f)
             }
-
-
 
             activityStartTime = Clock.System.now()
             mutableactivityDurationSeconds.value = 0.00
@@ -362,19 +289,8 @@ class OverlaySensorViewModel(
                 0.0f,
                 "",
                 0,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null
-            )
-                .toInt()
-
-
-
-
+                null, null, null, null, null, null, null
+            ).toInt()
 
             timerJob?.cancel()
             timerJob = viewModelScope.launch {
@@ -398,8 +314,24 @@ class OverlaySensorViewModel(
                         val minutes = (seconds / 60) % 60
 
 
-                        mutableActivityDurationTime.value =
-                            String.format("%02d:%02d:%02d", hours, minutes, seconds % 60)
+                        if (seconds < 3600) {
+                            var duration = String.format("%02d:%02d", minutes, seconds % 60)
+
+                            mutableActivityDurationTime.value = duration
+
+                        }
+                        else if (hours < 10)
+                        {
+                            var duration = String.format("%01d:%02d:%02d",hours, minutes, seconds % 60)
+
+                            mutableActivityDurationTime.value = duration
+                        }
+                        else
+                        {
+                            var duration = String.format("%02d:%02d:%02d",hours, minutes, seconds % 60)
+
+                            mutableActivityDurationTime.value = duration
+                        }
 
 
                         mutableactivityDistance.value +=
@@ -479,16 +411,11 @@ class OverlaySensorViewModel(
 
     fun onStopClicked() {
         mutableRecordingState.value = RecordingState.Confirm
-
     }
 
     fun onStopConfirm() {
         val tcx = TCX()
-
-
         val filepath = tcx.exportToTcx(activityID, getApplication())
-
-
         val text = "A TCX file was exported to $filepath"
         Toast.makeText(getApplication(), text, Toast.LENGTH_LONG).show()
 
@@ -496,38 +423,15 @@ class OverlaySensorViewModel(
         mutableRecordingState.value = RecordingState.Stopped
         timerJob?.cancel()
         mutableElapsedTimeSeconds.value = 0
-        mutableShowStopConfirmDialog.value = false
     }
 
     fun onStopCancel() {
         mutableRecordingState.value = RecordingState.Recording
     }
 
-    val powerGraph = mutableStateListOf<Float>()
-    val powerGraphlarge = mutableStateListOf<Float>()
-    val cadenceGraph = mutableStateListOf<Float>()
-    val heartRateGraph = mutableStateListOf<Float>()
-
-    private fun setupPowerGraphData() {
-        viewModelScope.launch(Dispatchers.IO) {
-            //Sensor value is read every tick and added to graph
-            combine(
-                sensorInterface.power.smoothSensorValue(),
-                tickerFlow(GraphUpdatePeriod)
-            ) { sensorValue, _ -> sensorValue }.collect { value ->
-                withContext(Dispatchers.Main) {
-                }
-                lastPower = value.toInt()
-
-            }
-        }
-    }
-
 
     // Happens last to ensure initialization order is correct
     init {
-        setupPowerGraphData()
-
 
         timerJobGraph?.cancel()
         timerJobGraph = viewModelScope.launch {
@@ -544,16 +448,14 @@ class OverlaySensorViewModel(
 
 
                 if (lastPower > mutableactivityAvgPower.value / 2) {
-                    powerGraph.add(lastPower.toFloat())
+
                     powerGraphlarge.add(lastPower.toFloat())
 
                 } else {
-                    powerGraph.add((mutableactivityAvgPower.value / 2).toFloat())
+
                     powerGraphlarge.add((mutableactivityAvgPower.value / 2).toFloat())
                 }
-                if (powerGraph.size > GraphMaxDataPoints) {
-                    powerGraph.removeFirst()
-                }
+
                 if (powerGraphlarge.size > GraphMaxDataPoints * 6) {
                     powerGraphlarge.removeFirst()
                 }
@@ -572,14 +474,7 @@ class OverlaySensorViewModel(
             }
         }
 
-        viewModelScope.launch(Dispatchers.IO) {
-            errorMessage.collect {
-                // Leave minimized state if we're showing an error message
-                if (it != null && mutableOverlayState.value == OverlayState.Minimized) {
-                    mutableOverlayState.value = OverlayState.Minimized
-                }
-            }
-        }
+
 
         viewModelScope.launch {
 
@@ -620,6 +515,7 @@ class OverlaySensorViewModel(
 
         }
 
+
         var initialSimMode = false
         bleFtmsServerManager.onControlPointChanged = { controlPoint ->
 
@@ -634,9 +530,11 @@ class OverlaySensorViewModel(
 
         viewModelScope.launch {
             bleFtmsServerManager.startAdvertising()
+
             launch { bleFtmsServerManager.observePower(sensorInterface.power) }
             launch { bleFtmsServerManager.observeCadence(sensorInterface.cadence) }
             launch { bleFtmsServerManager.observeSpeed(sensorInterface.speed) }
+
         }
 
 
@@ -646,20 +544,8 @@ class OverlaySensorViewModel(
         super.onCleared()
         bleHeartRateManager.disconnect()
         bleFtmsServerManager.stopAdvertising()
-        getApplication<Application>().unbindService(antServiceConnection)
+        bleServerManager.stopAdvertising()
     }
 
-    var res: Int = 57
-    fun onIncreaseResistance() {
-        // Increments resistance by 1 and sends to the bike interface
-        //sensorInterface.setResistance(lastResistance + 1f)
-        res += 1
-        sensorInterface.setResistance(res, getApplication())
-    }
 
-    fun onDecreaseResistance() {
-        // Decrements resistance by 1 (clamped to 0) and sends to the bike interface
-        //sensorInterface.setResistance((lastResistance - 1f).coerceAtLeast(0f))
-        sensorInterface.setResistance(99, getApplication())
-    }
 }

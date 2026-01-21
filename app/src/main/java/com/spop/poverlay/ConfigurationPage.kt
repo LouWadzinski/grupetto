@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.spop.poverlay.releases.Release
+import com.spop.poverlay.ui.theme.AirForceBlue
 import com.spop.poverlay.ui.theme.ErrorColor
 import com.spop.poverlay.ui.theme.LatoFontFamily
 
@@ -44,10 +45,7 @@ fun ConfigurationPage(
         if (showPermissionInfo) {
             PermissionPage(viewModel::onGrantPermissionClicked)
         } else {
-            val timerShownWhenMinimized by viewModel.showTimerWhenMinimized
-                .collectAsStateWithLifecycle(
-                    initialValue = true
-                )
+
 
             val heartRateDeviceName by viewModel.heartRateDeviceName
                 .collectAsStateWithLifecycle(initialValue = null)
@@ -60,8 +58,8 @@ fun ConfigurationPage(
 
             StartServicePage(
                 viewModel,
-                timerShownWhenMinimized,
-                viewModel::onShowTimerWhenMinimizedClicked,
+
+
                 viewModel::onStartServiceClicked,
                 viewModel::onRestartClicked,
                 viewModel::onClickedRelease,
@@ -81,8 +79,7 @@ fun ConfigurationPage(
 @Composable
 private fun StartServicePage(
     viewModel: ConfigurationViewModel,
-    timerShownWhenMinimized: Boolean,
-    onTimerShownWhenMinimizedToggled: (Boolean) -> Unit,
+
     onClickedStartOverlay: () -> Unit,
     onClickedRestartApp: () -> Unit,
     onClickedRelease: (Release) -> Unit,
@@ -156,7 +153,7 @@ private fun StartServicePage(
                         text = "❤ $heartRate BPM",
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.Red
+
                     )
                 }
                 else
@@ -165,7 +162,7 @@ private fun StartServicePage(
                         text = "❤ Device not connected",
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.Red
+
                     )
                 }
             }

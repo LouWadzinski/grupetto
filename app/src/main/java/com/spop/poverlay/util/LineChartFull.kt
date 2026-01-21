@@ -8,6 +8,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.viewinterop.AndroidView
 import com.spop.poverlay.overlay.OverlaySensorViewModel
+import com.spop.poverlay.ui.theme.SkyBlue
 import com.spop.poverlay.util.livechart.LiveChartAttributes
 import com.yabu.livechart.model.DataPoint
 import com.yabu.livechart.model.Dataset
@@ -43,7 +44,7 @@ fun LineChartFull(
                 )
                 clipChildren = false
             }.setLiveChartStyle(LiveChartStyle().apply {
-                textColor = android.graphics.Color.BLUE
+                textColor =  SkyBlue.toArgb()
                 textHeight = 30f
                 mainColor = lineColor.toArgb()
                 mainFillColor = fillColor.toArgb()

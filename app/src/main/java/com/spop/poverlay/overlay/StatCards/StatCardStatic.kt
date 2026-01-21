@@ -1,4 +1,5 @@
-package com.spop.poverlay.overlay.composables
+package com.spop.poverlay.overlay.StatCards
+
 import android.util.Log
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -32,10 +33,12 @@ import androidx.compose.foundation.combinedClickable
 
 import androidx.compose.material3.ExperimentalMaterial3Api // Assuming Material 3 is used for context menu
 import com.spop.poverlay.GrupettoApplication
+import com.spop.poverlay.overlay.StatCards.StatCardValues
+
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun StatCardMovable(
+fun StatCardStatic(
     name: String,
     value: String,
     unit: String,
@@ -49,16 +52,13 @@ fun StatCardMovable(
     batteryPCT: String = ""
 
 ) {
-    var height: Int=110
-    var width: Int=125
+    val statCardValues = StatCardValues()
+    var height: Int = statCardValues.height
+    var width: Int = statCardValues.width
 
-    if (averages == true)
-    {
-        width = 160
-    }
 
     val context = LocalContext.current
-    val dbHelper = remember { GrupettoApplication.getDbHelper()}
+    val dbHelper = remember { GrupettoApplication.getDbHelper() }
     val globalVariables = remember { GrupettoApplication.getGlobalVariables() }
     val density = LocalDensity.current
 
@@ -66,40 +66,11 @@ fun StatCardMovable(
     var offsetY by remember { mutableStateOf(offsety.toFloat()) }
 
 
-    LaunchedEffect(id) {
-        val userId = globalVariables.UserIDGet()
-        val savedPos = dbHelper.getStatCardPosition(userId, id)
-
-        if (savedPos != null) {
-            offsetX = savedPos.first.toFloat()
-            offsetY = savedPos.second.toFloat()
-        } else {
-            offsetX = offsetx.toFloat()
-            offsetY = offsety.toFloat()
-        }
-    }
-
-    Box(modifier = Modifier
-        .offset(offsetX.dp, offsetY.dp)
-        .pointerInput(Unit) {
-            detectDragGestures(
-                onDragEnd = {
-                    val userId = globalVariables.UserIDGet()
-                    dbHelper.updateStatCardPosition(userId, id, offsetX.toInt(), offsetY.toInt())
-                }
-            ) { change, dragAmount ->
-                change.consume()
-                offsetX += with(density) { dragAmount.x.toDp().value }
-                offsetY += with(density) { dragAmount.y.toDp().value }
-                if (offsetX < -75 )
-                    offsetX = -500f
-                if (offsetY< -75 )
-                    offsetY = -500f
 
 
-
-            }
-        }) {
+    Box(
+        modifier = Modifier
+    ) {
         Box(
             contentAlignment = Alignment.Center,
             modifier = modifier
@@ -108,15 +79,15 @@ fun StatCardMovable(
 
 
         ) {
-            if(averages == false) {
-                var ffontSize:Int = 48
-                if (name == "Duration"||name == "Speed")ffontSize = 32
+            if (averages == false) {
+                var ffontSize: Int = 48
+                ffontSize = 32
 
 
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-
-                    ) {
+                    modifier = Modifier.height(height.dp)
+                ) {
                     Text(
                         text = name,
                         color = Color.White,
@@ -129,30 +100,25 @@ fun StatCardMovable(
                         fontSize = ffontSize.sp,
                         fontWeight = FontWeight.Bold
                     )
-                    Text(
-                        text = unit,
-                        fontSize = 14.sp,
-                        color = Color.White,
-                        fontWeight = FontWeight.Light
-                    )
+
                 }
-            }
-            else
-            {
+            } else {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
 
                     ) {
-                    var ffontSize:Int = 48
-                    if (name == "Duration"||name == "Speed")ffontSize = 32
-                    Row(modifier = Modifier .width(125.dp).height(125.dp)) {
+                    var ffontSize: Int = 32
+
+                    Row(modifier = Modifier
+                        .width(width.dp)
+                        .height(height.dp)) {
                         Column(
 
-                            modifier = Modifier.width(85.dp),
+                            modifier = Modifier.width((width * .66).toInt().dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = name,
+                                text = unit,
                                 color = Color.White,
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Normal,
@@ -174,22 +140,12 @@ fun StatCardMovable(
                                 )
 
                             )
-                            Text(
-                                text = unit,
-                                fontSize = 14.sp,
-                                color = Color.White,
-                                fontWeight = FontWeight.Light,
-                                style = TextStyle(
-                                    lineHeight = 16.sp  // Adjust this value to your desired line height
 
-                                )
-
-                            )
                         }
                         Column(
-                            modifier = Modifier.width(40.dp),
+                            modifier = Modifier.width((width * .33).toInt().dp),
                             verticalArrangement = Arrangement.Center,
-                                    horizontalAlignment = Alignment.CenterHorizontally
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
                                 text = "avg:\n $avg ", fontSize = 14.sp,

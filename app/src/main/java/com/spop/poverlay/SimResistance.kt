@@ -44,23 +44,8 @@ class SimResistance(
         updateBikeResistance()
     }
 
-    fun addGear() {
 
-        if (_gear >= 39)
-            _gear = 40
-        else _gear += 1
-        updateBikeResistance()
 
-    }
-
-    fun minusGear() {
-        if (_gear <= 1)
-            _gear = 1
-        else _gear -= 1
-        updateBikeResistance()
-    }
-
-    var targetResistance = 0.0
     fun updateBikeResistance() {
 
         if (_gear < 0) _gear = 0
@@ -98,7 +83,7 @@ class SimResistance(
     }
 
 
-    var skip = 0
+
 
     // did the user change the knob?
     public fun targetResisitanceChanged(resistance: Float) {
@@ -110,21 +95,10 @@ class SimResistance(
 
 
         if (resistance.toInt() == _lastResistance) return
-        /*
-        if (_gearOverRide == 1 && resistance.toInt() != _resistanceLevel.toInt() && skip < 30) {
-            skip += 1
-            updateBikeResistance()
-            return
-        }
-        _gearOverRide = 0
-        skip = 0
-        */
-
-
 
 
         _gear = _gear - (resistance.toInt() - _resistanceLevel.toInt())
-        // Log.d("Gear", "gear : $_gear")
+
         if (_gear < 1 || _gear > 40) {
             _lastResistance = -1
             updateBikeResistance()

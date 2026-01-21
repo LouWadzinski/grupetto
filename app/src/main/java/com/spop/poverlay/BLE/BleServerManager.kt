@@ -23,15 +23,9 @@ import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlin.math.floor
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.nanoseconds
-import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
-import android.os.Handler
-import android.os.Looper
 import java.util.Timer
-import java.util.TimerTask
 import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.measureTime
 
 class BleServerManager(private val context: Context) {
 
@@ -83,9 +77,9 @@ class BleServerManager(private val context: Context) {
         bluetoothLeAdvertiser = bluetoothAdapter?.bluetoothLeAdvertiser
     }
 
-    suspend fun observePower(power: Flow<String>) {
+    suspend fun observePower(power: Flow<Float>) {
         power.collect { value ->
-            val powerInt = value.toIntOrNull() ?: 0
+            val powerInt = value.toInt() ?: 0
             lastPower = powerInt
 
             postPower()
@@ -123,9 +117,9 @@ class BleServerManager(private val context: Context) {
 
     }
 
-    suspend fun observeCadence(cadence: Flow<String>) {
+    suspend fun observeCadence(cadence: Flow<Float>) {
         cadence.collect { value ->
-            val cadenceInt = value.toIntOrNull() ?: 0
+            val cadenceInt = value.toInt() ?: 0
 
 
 

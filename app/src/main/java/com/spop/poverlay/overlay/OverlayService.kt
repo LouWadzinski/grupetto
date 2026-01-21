@@ -8,105 +8,146 @@ import android.content.Intent
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
+import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.WindowManager.LayoutParams
-import android.widget.FrameLayout
-import androidx.compose.runtime.collectAsState
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import androidx.core.app.ServiceCompat.stopForeground
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.lifecycleScope
-import com.spop.poverlay.ConfigurationRepository
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.spop.poverlay.MainActivity
 import com.spop.poverlay.R
+import com.spop.poverlay.overlay.StatCards.OverlayControls
 import com.spop.poverlay.sensor.DeadSensorDetector
 import com.spop.poverlay.sensor.interfaces.DummySensorInterface
 import com.spop.poverlay.sensor.interfaces.PelotonBikeSensorInterfaceV1New
 import com.spop.poverlay.sensor.interfaces.PelotonBikePlusSensorInterface
+import com.spop.poverlay.sensor.interfaces.SensorInterface
 import com.spop.poverlay.util.IsBikePlus
 import com.spop.poverlay.util.IsRunningOnPeloton
 import com.spop.poverlay.util.LifecycleEnabledService
 import com.spop.poverlay.util.disableAnimations
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
+import com.spop.poverlay.overlay.StatCards.statCardCadence
+import com.spop.poverlay.overlay.StatCards.statCardDistance
+import com.spop.poverlay.overlay.StatCards.statCardResistance
+import com.spop.poverlay.overlay.StatCards.statCardCalories
+import com.spop.poverlay.overlay.StatCards.statCardDuration
+import com.spop.poverlay.overlay.StatCards.statCardHeartRate
+import com.spop.poverlay.overlay.StatCards.statCardPower
+import com.spop.poverlay.overlay.StatCards.statCardSpeed
+import com.spop.poverlay.overlay.StatCards.statCardGear
+import com.spop.poverlay.overlay.StatCards.statCardGrade
+import com.spop.poverlay.overlay.StatCards.lineChartsMovable
+import com.spop.poverlay.overlay.StatCards.alphaSlider
+import com.spop.poverlay.overlay.StatCards.gearSlider
+import com.spop.poverlay.overlay.StatCards.controlBox
+import com.spop.poverlay.overlay.StatCards.StopConfirmationDialog
 import timber.log.Timber
 import java.util.*
 import kotlin.math.roundToInt
+import com.spop.poverlay.GrupettoApplication
 
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.lifecycle.lifecycleScope
+import com.spop.poverlay.overlay.StatCards.StatCardValues
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 
 
 class OverlayService : LifecycleEnabledService() {
     companion object {
-        private const val DefaultOverlayFlags = (LayoutParams.FLAG_NOT_TOUCH_MODAL
-                or LayoutParams.FLAG_NOT_FOCUSABLE
-                or LayoutParams.FLAG_LAYOUT_NO_LIMITS)
-
-
         private const val OverlayServiceId = 2032
-
-        val OverlayHeightDp = 110.dp
-
-        //Increases the size of the touch target during the hidden state
-        const val HiddenTouchTargetMarginPx = 40
-
-        //The percentage up or down a vertical drag must go before the overlay is relocated
-        //Defined relative to the height of the screen
-        const val VerticalMoveDragThreshold = .5f
-
-        // Replace with DeadSensorInterface to simulate a dead sensor
         val EmulatorSensorInterface by lazy { DummySensorInterface() }
     }
 
-    override fun onDestroy() {
-
-    }
+    var controlsLocked = false
 
 
+    lateinit var sensorViewModel: OverlaySensorViewModel
+    lateinit var sensorInterface: SensorInterface
+    lateinit var wm: WindowManager
+    lateinit var overlayView: ComposeView
+    lateinit var controlView: ComposeView
 
+    lateinit var controlBoxView: ComposeView
+
+    lateinit var gradeView: ComposeView
+    lateinit var graphViewMove: ComposeView
+    lateinit var distanceView: ComposeView
+    lateinit var cadenceView: ComposeView
+    lateinit var heartRateView: ComposeView
+
+    lateinit var gearView: ComposeView
+
+    lateinit var speedView: ComposeView
+
+    lateinit var powerView: ComposeView
+
+    lateinit var alphaSliderView: ComposeView
+
+    lateinit var gearSliderView: ComposeView
+
+    lateinit var durationView: ComposeView
+
+    lateinit var graphView: ComposeView
+
+    lateinit var caloriesView: ComposeView
+
+    lateinit var resistanceView: ComposeView
+
+    lateinit var confirmDialogView: ComposeView
+
+
+    // LayoutParams variables
+
+    lateinit var controlParams: LayoutParams
+    lateinit var cadenceParams: LayoutParams
+    lateinit var distanceParams: LayoutParams
+    lateinit var resistanceParams: LayoutParams
+    lateinit var caloriesParams: LayoutParams
+    lateinit var durationParams: LayoutParams
+    lateinit var heartRateParams: LayoutParams
+    lateinit var powerParams: LayoutParams
+    lateinit var speedParams: LayoutParams
+    lateinit var gearParams: LayoutParams
+    lateinit var gradeParams: LayoutParams
+    lateinit var graphParams: LayoutParams
+    lateinit var graphMoveParams: LayoutParams
+    lateinit var alphaSliderParams: LayoutParams
+    lateinit var gearSliderParams: LayoutParams
+    lateinit var controlBoxParams: LayoutParams
+    lateinit var confirmDialogParams: LayoutParams
+
+    val globalVariables = GrupettoApplication.getGlobalVariables()
+    val dbHelper = GrupettoApplication.getDbHelper()
+
+    val statCardValues = StatCardValues()
+
+
+    override fun onDestroy() {}
 
     override fun onCreate() {
         super.onCreate()
-
         val notificationManager = NotificationManagerCompat.from(this)
         startForeground(OverlayServiceId, prepareNotification(notificationManager))
 
-
-       // bleViewModel = BleViewModel(this)
-       // bleViewModel.StartService(this, getApplication())
-
-
-
-
-        buildDialog()
-    }
-
-    override fun onBind(intent: Intent?): IBinder? {
-        return null
-    }
-
-
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Timber.i("overlay service received intent")
-        return START_STICKY
-    }
-
-    private fun buildDialog() {
-        val wm = getSystemService(WINDOW_SERVICE) as WindowManager
-        val screenSize = Size(
-            resources.displayMetrics.widthPixels.toFloat(),
-            resources.displayMetrics.heightPixels.toFloat()
-        )
-
-        val sensorInterface = if (IsRunningOnPeloton) {
+        sensorInterface = if (IsRunningOnPeloton) {
             if (IsBikePlus) {
                 PelotonBikePlusSensorInterface(this).also {
                     lifecycle.addObserver(object : DefaultLifecycleObserver {
@@ -124,152 +165,1157 @@ class OverlayService : LifecycleEnabledService() {
                     })
                 }
             }
+        } else EmulatorSensorInterface
 
-        } else {
-            EmulatorSensorInterface
-        }
-
-        val sensorViewModel = OverlaySensorViewModel(
+        sensorViewModel = OverlaySensorViewModel(
             application,
             sensorInterface,
             DeadSensorDetector(sensorInterface, this.coroutineContext),
             onExit = { exit() }
         )
 
+        wm = getSystemService(WINDOW_SERVICE) as WindowManager
+        buildDialog()
 
-        val timerViewModel = OverlayTimerViewModel(
-            application,
-            ConfigurationRepository(applicationContext, this)
-        )
+        observeSimMode()
+        observeRecordingState()
+    }
 
-
-        val dialogViewModel = OverlayDialogViewModel(
-            screenSize,
-            sensorViewModel.isMinimized,
-            sensorViewModel.overlayState
-        )
-
-        val layoutFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            LayoutParams.TYPE_APPLICATION_OVERLAY
-        } else {
-            @Suppress("DEPRECATION")
-            LayoutParams.TYPE_SYSTEM_ALERT
+    private fun observeSimMode() {
+        lifecycleScope.launch {
+            sensorViewModel.simMode.collectLatest { isSimMode ->
+                if (isSimMode) {
+                    showSimViews()
+                } else {
+                    hideSimViews()
+                }
+            }
         }
+    }
+
+    private fun observeRecordingState() {
+        lifecycleScope.launch {
+            sensorViewModel.recordingState.collectLatest { state ->
+                if (state == RecordingState.Confirm) {
+                    if (confirmDialogView.parent == null) {
+                        wm.addView(confirmDialogView, confirmDialogParams)
+                    }
+                } else {
+                    if (confirmDialogView.parent != null) {
+                        wm.removeView(confirmDialogView)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun showSimViews() {
+        if (gearView.parent == null) wm.addView(gearView, gearParams)
+        if (gradeView.parent == null) wm.addView(gradeView, gradeParams)
+        if (gearSliderView.parent == null) wm.addView(gearSliderView, gearSliderParams)
+    }
+
+    private fun hideSimViews() {
+        if (gearView.parent != null) wm.removeView(gearView)
+        if (gradeView.parent != null) wm.removeView(gradeView)
+        if (gearSliderView.parent != null) wm.removeView(gearSliderView)
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Timber.i("overlay service received intent")
+        return START_STICKY
+    }
+
+    val layoutFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        LayoutParams.TYPE_APPLICATION_OVERLAY
+    } else {
+        @Suppress("DEPRECATION")
+        LayoutParams.TYPE_SYSTEM_ALERT
+    }
+
+    private fun buildDialog() {
+
+        val userId = globalVariables.UserIDGet()
+
+        val savedPosGraph = dbHelper.getStatCardPosition(userId, 211)
+
+
+
 
 
         val defaultFlags = (LayoutParams.FLAG_NOT_TOUCH_MODAL
                 or LayoutParams.FLAG_NOT_FOCUSABLE
                 or LayoutParams.FLAG_LAYOUT_NO_LIMITS)
 
-        val overlayParams = LayoutParams(
-            200,
-            LayoutParams.WRAP_CONTENT,
+
+        cadenceView = ComposeView(this).apply {
+            lifecycleViaService()
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnLifecycleDestroyed(this@OverlayService))
+            setContent { statCardCadence(sensorViewModel, 201) }
+        }
+
+
+        val cadenceId = 201
+
+
+
+
+
+
+
+        cadenceView.setOnTouchListener(object : View.OnTouchListener {
+            private var initialX = 0
+            private var initialY = 0
+            private var initialTouchX = 0f
+            private var initialTouchY = 0f
+
+            override fun onTouch(v: View, event: MotionEvent): Boolean {
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        initialX = cadenceParams.x
+                        initialY = cadenceParams.y
+                        initialTouchX = event.rawX
+                        initialTouchY = event.rawY
+                        return true
+                    }
+
+                    MotionEvent.ACTION_MOVE -> {
+                        cadenceParams.x = initialX + (event.rawX - initialTouchX).roundToInt()
+                        cadenceParams.y = initialY + (event.rawY - initialTouchY).roundToInt()
+                        wm.updateViewLayout(cadenceView, cadenceParams)
+                        return true
+                    }
+
+                    MotionEvent.ACTION_UP -> {
+                        dbHelper.updateStatCardPosition(
+                            userId,
+                            cadenceId,
+                            cadenceParams.x,
+                            cadenceParams.y
+                        )
+                        return true
+                    }
+                }
+                return false
+            }
+        })
+
+
+        distanceView = ComposeView(this).apply {
+            lifecycleViaService()
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnLifecycleDestroyed(this@OverlayService))
+            setContent { statCardDistance(sensorViewModel, 202) }
+        }
+        val distanceId = 223
+
+
+
+
+        distanceView.setOnTouchListener(object : View.OnTouchListener {
+            private var initialX = 0
+            private var initialY = 0
+            private var initialTouchX = 0f
+
+            private var initialTouchY = 0f
+
+            override fun onTouch(v: View, event: MotionEvent): Boolean {
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        initialX = distanceParams.x
+                        initialY = distanceParams.y
+                        initialTouchX = event.rawX
+                        initialTouchY = event.rawY
+                        return true
+                    }
+
+                    MotionEvent.ACTION_MOVE -> {
+                        distanceParams.x = initialX + (event.rawX - initialTouchX).roundToInt()
+                        distanceParams.y = initialY + (event.rawY - initialTouchY).roundToInt()
+                        wm.updateViewLayout(distanceView, distanceParams)
+                        return true
+                    }
+
+                    MotionEvent.ACTION_UP -> {
+                        dbHelper.updateStatCardPosition(
+                            userId,
+                            distanceId,
+                            distanceParams.x,
+                            distanceParams.y
+                        )
+                        return true
+                    }
+                }
+                return false
+            }
+        })
+
+        resistanceView = ComposeView(this).apply {
+            lifecycleViaService()
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnLifecycleDestroyed(this@OverlayService))
+            setContent { statCardResistance(sensorViewModel, 203) }
+        }
+        val resistanceId = 203
+
+
+
+
+
+
+        resistanceView.setOnTouchListener(object : View.OnTouchListener {
+            private var initialX = 0
+            private var initialY = 0
+            private var initialTouchX = 0f
+            private var initialTouchY = 0f
+
+            override fun onTouch(v: View, event: MotionEvent): Boolean {
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        initialX = resistanceParams.x
+                        initialY = resistanceParams.y
+                        initialTouchX = event.rawX
+                        initialTouchY = event.rawY
+                        return true
+                    }
+
+                    MotionEvent.ACTION_MOVE -> {
+                        resistanceParams.x = initialX + (event.rawX - initialTouchX).roundToInt()
+                        resistanceParams.y = initialY + (event.rawY - initialTouchY).roundToInt()
+                        wm.updateViewLayout(resistanceView, resistanceParams)
+                        return true
+                    }
+
+                    MotionEvent.ACTION_UP -> {
+                        dbHelper.updateStatCardPosition(
+                            userId,
+                            resistanceId,
+                            resistanceParams.x,
+                            resistanceParams.y
+                        )
+                        return true
+                    }
+                }
+                return false
+            }
+        })
+
+        caloriesView = ComposeView(this).apply {
+            lifecycleViaService()
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnLifecycleDestroyed(this@OverlayService))
+            setContent { statCardCalories(sensorViewModel, 204) }
+        }
+        val caloriesId = 204
+
+
+
+
+
+
+        caloriesView.setOnTouchListener(object : View.OnTouchListener {
+            private var initialX = 0
+            private var initialY = 0
+            private var initialTouchX = 0f
+            private var initialTouchY = 0f
+
+            override fun onTouch(v: View, event: MotionEvent): Boolean {
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        initialX = caloriesParams.x
+                        initialY = caloriesParams.y
+                        initialTouchX = event.rawX
+                        initialTouchY = event.rawY
+                        return true
+                    }
+
+                    MotionEvent.ACTION_MOVE -> {
+                        caloriesParams.x = initialX + (event.rawX - initialTouchX).roundToInt()
+                        caloriesParams.y = initialY + (event.rawY - initialTouchY).roundToInt()
+                        wm.updateViewLayout(caloriesView, caloriesParams)
+                        return true
+                    }
+
+                    MotionEvent.ACTION_UP -> {
+                        dbHelper.updateStatCardPosition(
+                            userId,
+                            caloriesId,
+                            caloriesParams.x,
+                            caloriesParams.y
+                        )
+                        return true
+                    }
+                }
+                return false
+            }
+        })
+
+        durationView = ComposeView(this).apply {
+            lifecycleViaService()
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnLifecycleDestroyed(this@OverlayService))
+            setContent { statCardDuration(sensorViewModel, 205) }
+        }
+        val durationId = 205
+
+
+
+
+
+
+        durationView.setOnTouchListener(object : View.OnTouchListener {
+            private var initialX = 0
+            private var initialY = 0
+            private var initialTouchX = 0f
+            private var initialTouchY = 0f
+
+            override fun onTouch(v: View, event: MotionEvent): Boolean {
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        initialX = durationParams.x
+                        initialY = durationParams.y
+                        initialTouchX = event.rawX
+                        initialTouchY = event.rawY
+                        return true
+                    }
+
+                    MotionEvent.ACTION_MOVE -> {
+                        durationParams.x = initialX + (event.rawX - initialTouchX).roundToInt()
+                        durationParams.y = initialY + (event.rawY - initialTouchY).roundToInt()
+                        wm.updateViewLayout(durationView, durationParams)
+                        return true
+                    }
+
+                    MotionEvent.ACTION_UP -> {
+                        dbHelper.updateStatCardPosition(
+                            userId,
+                            durationId,
+                            durationParams.x,
+                            durationParams.y
+                        )
+                        return true
+                    }
+                }
+                return false
+            }
+        })
+
+
+
+        heartRateView = ComposeView(this).apply {
+            lifecycleViaService()
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnLifecycleDestroyed(this@OverlayService))
+            setContent { statCardHeartRate(sensorViewModel, 206) }
+        }
+        val heartRateId = 206
+
+
+
+
+
+
+        heartRateView.setOnTouchListener(object : View.OnTouchListener {
+            private var initialX = 0
+            private var initialY = 0
+            private var initialTouchX = 0f
+            private var initialTouchY = 0f
+
+            override fun onTouch(v: View, event: MotionEvent): Boolean {
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        initialX = heartRateParams.x
+                        initialY = heartRateParams.y
+                        initialTouchX = event.rawX
+                        initialTouchY = event.rawY
+                        return true
+                    }
+
+                    MotionEvent.ACTION_MOVE -> {
+                        heartRateParams.x = initialX + (event.rawX - initialTouchX).roundToInt()
+                        heartRateParams.y = initialY + (event.rawY - initialTouchY).roundToInt()
+                        wm.updateViewLayout(heartRateView, heartRateParams)
+                        return true
+                    }
+
+                    MotionEvent.ACTION_UP -> {
+                        dbHelper.updateStatCardPosition(
+                            userId,
+                            heartRateId,
+                            heartRateParams.x,
+                            heartRateParams.y
+                        )
+                        return true
+                    }
+                }
+                return false
+            }
+        })
+
+
+        powerView = ComposeView(this).apply {
+            lifecycleViaService()
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnLifecycleDestroyed(this@OverlayService))
+            setContent { statCardPower(sensorViewModel, 207) }
+        }
+        val powerId = 207
+
+
+
+
+
+
+        powerView.setOnTouchListener(object : View.OnTouchListener {
+            private var initialX = 0
+            private var initialY = 0
+            private var initialTouchX = 0f
+            private var initialTouchY = 0f
+
+            override fun onTouch(v: View, event: MotionEvent): Boolean {
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        initialX = powerParams.x
+                        initialY = powerParams.y
+                        initialTouchX = event.rawX
+                        initialTouchY = event.rawY
+                        return true
+                    }
+
+                    MotionEvent.ACTION_MOVE -> {
+                        powerParams.x = initialX + (event.rawX - initialTouchX).roundToInt()
+                        powerParams.y = initialY + (event.rawY - initialTouchY).roundToInt()
+                        wm.updateViewLayout(powerView, powerParams)
+                        return true
+                    }
+
+                    MotionEvent.ACTION_UP -> {
+                        dbHelper.updateStatCardPosition(
+                            userId,
+                            powerId,
+                            powerParams.x,
+                            powerParams.y
+                        )
+                        return true
+                    }
+                }
+                return false
+            }
+        })
+
+
+
+        speedView = ComposeView(this).apply {
+            lifecycleViaService()
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnLifecycleDestroyed(this@OverlayService))
+            setContent { statCardSpeed(sensorViewModel, 208) }
+        }
+        val speedId = 208
+
+
+
+
+
+
+        speedView.setOnTouchListener(object : View.OnTouchListener {
+            private var initialX = 0
+            private var initialY = 0
+            private var initialTouchX = 0f
+            private var initialTouchY = 0f
+
+            override fun onTouch(v: View, event: MotionEvent): Boolean {
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        initialX = speedParams.x
+                        initialY = speedParams.y
+                        initialTouchX = event.rawX
+                        initialTouchY = event.rawY
+                        return true
+                    }
+
+                    MotionEvent.ACTION_MOVE -> {
+                        speedParams.x = initialX + (event.rawX - initialTouchX).roundToInt()
+                        speedParams.y = initialY + (event.rawY - initialTouchY).roundToInt()
+                        //wm.updateViewLayout(speedView, speedParams)
+                        return true
+                    }
+
+                    MotionEvent.ACTION_UP -> {
+                        dbHelper.updateStatCardPosition(
+                            userId,
+                            speedId,
+                            speedParams.x,
+                            speedParams.y
+                        )
+                        return true
+                    }
+                }
+                return false
+            }
+        })
+
+
+        gearView = ComposeView(this).apply {
+            lifecycleViaService()
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnLifecycleDestroyed(this@OverlayService))
+            setContent { statCardGear(sensorViewModel, 209) }
+        }
+        val gearId = 209
+
+
+
+
+
+
+        gearView.setOnTouchListener(object : View.OnTouchListener {
+            private var initialX = 0
+            private var initialY = 0
+            private var initialTouchX = 0f
+            private var initialTouchY = 0f
+
+            override fun onTouch(v: View, event: MotionEvent): Boolean {
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        initialX = gearParams.x
+                        initialY = gearParams.y
+                        initialTouchX = event.rawX
+                        initialTouchY = event.rawY
+                        return true
+                    }
+
+                    MotionEvent.ACTION_MOVE -> {
+                        gearParams.x = initialX + (event.rawX - initialTouchX).roundToInt()
+                        gearParams.y = initialY + (event.rawY - initialTouchY).roundToInt()
+                        wm.updateViewLayout(gearView, gearParams)
+                        return true
+                    }
+
+                    MotionEvent.ACTION_UP -> {
+                        dbHelper.updateStatCardPosition(userId, gearId, gearParams.x, gearParams.y)
+                        return true
+                    }
+                }
+                return false
+            }
+        })
+
+
+
+        gradeView = ComposeView(this).apply {
+            lifecycleViaService()
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnLifecycleDestroyed(this@OverlayService))
+            setContent { statCardGrade(sensorViewModel, 210) }
+        }
+        val gradeId = 210
+
+        gradeView.setOnTouchListener(object : View.OnTouchListener {
+            private var initialX = 0
+            private var initialY = 0
+            private var initialTouchX = 0f
+            private var initialTouchY = 0f
+
+            override fun onTouch(v: View, event: MotionEvent): Boolean {
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        initialX = gradeParams.x
+                        initialY = gradeParams.y
+                        initialTouchX = event.rawX
+                        initialTouchY = event.rawY
+                        return true
+                    }
+
+                    MotionEvent.ACTION_MOVE -> {
+                        gradeParams.x = initialX + (event.rawX - initialTouchX).roundToInt()
+                        gradeParams.y = initialY + (event.rawY - initialTouchY).roundToInt()
+                        wm.updateViewLayout(gradeView, gradeParams)
+                        return true
+                    }
+
+                    MotionEvent.ACTION_UP -> {
+                        dbHelper.updateStatCardPosition(
+                            userId,
+                            gradeId,
+                            gradeParams.x,
+                            gradeParams.y
+                        )
+                        return true
+                    }
+                }
+                return false
+            }
+        })
+
+        graphView = ComposeView(this).apply {
+            lifecycleViaService()
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnLifecycleDestroyed(this@OverlayService))
+            setContent { Box(modifier = Modifier.fillMaxSize()) { lineChartsMovable(sensorViewModel) } }
+        }
+        val graphId = 211
+
+
+        graphParams = LayoutParams(
+            750.dpToPx(),
+            220.dpToPx(),
             layoutFlag,
             defaultFlags,
             PixelFormat.TRANSLUCENT
-
         ).apply {
-            disableAnimations()
-        }
-
-        val touchTargetParams = LayoutParams().apply {
-            copyFrom(overlayParams)
-            disableAnimations()
-        }
-
-        val touchTargetView = FrameLayout(this).apply {
-            lifecycleViaService()
-            setOnClickListener {
-                sensorViewModel.onOverlayPressed()
+            gravity = Gravity.TOP or Gravity.START
+            if (savedPosGraph != null) {
+                x = savedPosGraph.first
+                y = savedPosGraph.second
+            } else {
+                x = 0
+                y = 0
             }
-            layoutParams = ViewGroup.LayoutParams(100, 100)
+            disableAnimations()
         }
 
-        val overlayView = ComposeView(this).apply {
+        graphView.setOnTouchListener(object : View.OnTouchListener {
+            private var initialX = 0
+            private var initialY = 0
+            private var initialTouchX = 0f
+            private var initialTouchY = 0f
+
+            override fun onTouch(v: View, event: MotionEvent): Boolean {
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        initialX = graphParams.x
+                        initialY = graphParams.y
+                        initialTouchX = event.rawX
+                        initialTouchY = event.rawY
+                        return true
+                    }
+
+                    MotionEvent.ACTION_MOVE -> {
+                        graphParams.x = initialX + (event.rawX - initialTouchX).roundToInt()
+                        graphParams.y = initialY + (event.rawY - initialTouchY).roundToInt()
+                        wm.updateViewLayout(graphView, graphParams)
+                        return true
+                    }
+
+                    MotionEvent.ACTION_UP -> {
+                        dbHelper.updateStatCardPosition(
+                            userId,
+                            graphId,
+                            graphParams.x,
+                            graphParams.y
+                        )
+                        return true
+                    }
+                }
+                return false
+            }
+        })
+
+        graphViewMove = ComposeView(this).apply {
             lifecycleViaService()
-            setViewCompositionStrategy(
-                ViewCompositionStrategy
-                    .DisposeOnLifecycleDestroyed(this@OverlayService)
-            )
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnLifecycleDestroyed(this@OverlayService))
+            setContent { Box(modifier = Modifier.fillMaxSize()) }
+        }
+        val graphMoveId = 211
+
+        graphViewMove.setOnTouchListener(object : View.OnTouchListener {
+            private var initialX = 0
+            private var initialY = 0
+            private var initialTouchX = 0f
+            private var initialTouchY = 0f
+
+            override fun onTouch(v: View, event: MotionEvent): Boolean {
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        initialX = graphParams.x
+                        initialY = graphParams.y
+                        initialTouchX = event.rawX
+                        initialTouchY = event.rawY
+                        return true
+                    }
+
+                    MotionEvent.ACTION_MOVE -> {
+                        graphParams.x = initialX + (event.rawX - initialTouchX).roundToInt()
+                        graphParams.y = initialY + (event.rawY - initialTouchY).roundToInt()
+                        wm.updateViewLayout(graphViewMove, graphParams)
+                        wm.updateViewLayout(graphView, graphParams)
+                        return true
+                    }
+
+                    MotionEvent.ACTION_UP -> {
+                        dbHelper.updateStatCardPosition(
+                            userId,
+                            graphId,
+                            graphParams.x,
+                            graphParams.y
+                        )
+                        return true
+                    }
+                }
+                return false
+            }
+        })
+
+        alphaSliderView = ComposeView(this).apply {
+            lifecycleViaService()
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnLifecycleDestroyed(this@OverlayService))
+            setContent { alphaSlider(sensorViewModel) }
+        }
+
+
+
+
+
+
+        gearSliderView = ComposeView(this).apply {
+            lifecycleViaService()
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnLifecycleDestroyed(this@OverlayService))
+            setContent { gearSlider(sensorViewModel) }
+        }
+        val gearSliderId = 222
+
+
+
+        gearSliderParams = LayoutParams(
+            resources.displayMetrics.widthPixels.toInt()-100,
+            30.dpToPx(),
+            layoutFlag,
+            defaultFlags,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.BOTTOM or Gravity.START
+            {
+                x = 0
+                y = 0
+            }
+            disableAnimations()
+        }
+        gearSliderParams.y = 30
+
+        controlBoxView = ComposeView(this).apply {
+            lifecycleViaService()
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnLifecycleDestroyed(this@OverlayService))
+            setContent { controlBox(sensorViewModel, this.context,   {resetCardPostions()} ) }
+        }
+        val controlBoxId = 202
+
+
+        controlBoxParams = LayoutParams(
+            500,
+            200,
+
+            layoutFlag,
+            defaultFlags,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.END
+            {
+                x = 30
+                y = 0
+            }
+            disableAnimations()
+        }
+
+
+
+
+
+
+
+
+
+        controlView = ComposeView(this).apply {
+            lifecycleViaService()
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnLifecycleDestroyed(this@OverlayService))
             setContent {
-                Overlay(
-                    sensorViewModel,
-                    timerViewModel,
-                    OverlayHeightDp,
-                    dialogViewModel.dialogLocation.collectAsState(),
-                    dialogViewModel::processHorizontalDrag,
-                    dialogViewModel::processVerticalDrag,
-                    dialogViewModel::processHideProgress,
-                    dialogViewModel::onOverlayLayout,
-                    dialogViewModel::onTimerOverlayLayout
+                val recordingState by sensorViewModel.recordingState.collectAsStateWithLifecycle(
+                    initialValue = RecordingState.Stopped
                 )
+                OverlayControls(
+                     sensorViewModel
+                     ,
+                    onLockControls = {
+                        lockControls() })
             }
-            alpha = 0.9f
-            isFocusable = false
-            clipToPadding = false
-            clipChildren = false
-            clipToOutline = false
         }
-        wm.addView(overlayView, overlayParams)
 
-        wm.addView(touchTargetView, touchTargetParams)
-        touchTargetView.clipChildren = false
-        touchTargetView.clipToPadding = false
-        //Subscribe to Dialog view model and update views
-        lifecycleScope.launchWhenResumed {
-            combine(
-                dialogViewModel.dialogOrigin,
-                dialogViewModel.dialogGravity,
-                dialogViewModel.partialOverlayFlags,
-                dialogViewModel.touchTargetHeight,
-                dialogViewModel.dialogSizeParams,
-                dialogViewModel.minimizedDialogSizeParams,
-                sensorViewModel.overlayState
-            ) { values ->
-                val origin = values[0] as Offset
-                val gravity = values[1] as Int
-                val overlayFlags = values[2] as Int
-                val touchTargetHeight = values[3] as Float
-                val (width, height) = values[4] as Pair<Int, Int>
-                val (mWidth, mHeight) = values[5] as Pair<Int, Int>
-                val overlayState = values[6] as OverlayState
 
-                overlayParams.x = origin.x.roundToInt()
-                overlayParams.y = origin.y.roundToInt()
-                overlayParams.flags = DefaultOverlayFlags or overlayFlags
-                overlayParams.gravity = when (overlayState) {
-                    //OverlayState.Main -> gravity
-                    OverlayState.Minimized -> gravity
-                    OverlayState.FullScreen -> 49
-                }
-                overlayParams.width = if (overlayState == OverlayState.FullScreen) {
-                    screenSize.width.toInt()
-                } else {
-                    width
-                }
-                overlayParams.height = when (overlayState) {
-                    //OverlayState.Main -> height
-                    OverlayState.Minimized -> mHeight
-                    OverlayState.FullScreen -> screenSize.height.toInt()
-                }
 
-                touchTargetParams.x = origin.x.roundToInt()
-                touchTargetParams.y = origin.y.roundToInt()
-                touchTargetParams.gravity = gravity
-                touchTargetParams.width = mWidth
-                touchTargetParams.height = touchTargetHeight.roundToInt()
-                touchTargetView.visibility = if (touchTargetHeight > 0f) {
-                    View.VISIBLE
-                } else {
-                    View.GONE
-                }
-                disableClipOnParents(overlayView)
-                wm.updateViewLayout(overlayView, overlayParams)
-                wm.updateViewLayout(touchTargetView, touchTargetParams)
-            }.collect {}
+        controlParams = LayoutParams(
+            56.dpToPx(),
+            56.dpToPx(),
+            layoutFlag,
+            defaultFlags,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.BOTTOM or Gravity.END
+            disableAnimations()
+        }
+
+        confirmDialogView = ComposeView(this).apply {
+            lifecycleViaService()
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnLifecycleDestroyed(this@OverlayService))
+            setContent {
+                StopConfirmationDialog(sensorViewModel)
+            }
+        }
+
+        confirmDialogParams = LayoutParams(
+            LayoutParams.WRAP_CONTENT,
+            LayoutParams.WRAP_CONTENT,
+            layoutFlag,
+            LayoutParams.FLAG_NOT_TOUCH_MODAL or LayoutParams.FLAG_DIM_BEHIND,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.CENTER
+            dimAmount = 0.5f
+            disableAnimations()
+        }
+
+        setParams()
+
+        wm.addView(controlView, controlParams)
+        wm.addView(cadenceView, cadenceParams)
+        //wm.addView(distanceView, distanceParams)
+        wm.addView(resistanceView, resistanceParams)
+        wm.addView(caloriesView, caloriesParams)
+        wm.addView(durationView, durationParams)
+        wm.addView(heartRateView, heartRateParams)
+        wm.addView(powerView, powerParams)
+        //wm.addView(speedView, speedParams)
+        // wm.addView(gearView, gearParams)
+        // wm.addView(gradeView, gradeParams)
+        wm.addView(graphView, graphParams)
+        wm.addView(graphViewMove, graphMoveParams)
+        wm.addView(alphaSliderView, alphaSliderParams)
+        // wm.addView(gearSliderView, gearSliderParams)
+        wm.addView(controlBoxView, controlBoxParams)
+    }
+
+    private fun setParams() {
+
+        var defaultFlags = (LayoutParams.FLAG_NOT_TOUCH_MODAL
+                or LayoutParams.FLAG_NOT_FOCUSABLE
+                or LayoutParams.FLAG_LAYOUT_NO_LIMITS)
+
+
+
+        if (sensorViewModel.lockControls.value){
+            defaultFlags = (LayoutParams.FLAG_NOT_TOUCH_MODAL
+                    or LayoutParams.FLAG_NOT_FOCUSABLE
+                    or LayoutParams.FLAG_LAYOUT_NO_LIMITS or LayoutParams.FLAG_NOT_TOUCHABLE)
+
+
+
+
+        }
+
+val userId = globalVariables.UserIDGet()
+
+
+        val savedPosResistance = dbHelper.getStatCardPosition(userId, 203)
+        val savedPosCalories = dbHelper.getStatCardPosition(userId, 204)
+        val savedPosDuration = dbHelper.getStatCardPosition(userId, 205)
+        val savedPosHeartRate = dbHelper.getStatCardPosition(userId, 206)
+        val savedPosPower = dbHelper.getStatCardPosition(userId, 207)
+        val savedPosSpeed = dbHelper.getStatCardPosition(userId, 208)
+        val savedPosGear = dbHelper.getStatCardPosition(userId, 209)
+        val savedPosGrade = dbHelper.getStatCardPosition(userId, 210)
+        val savedPosGraph = dbHelper.getStatCardPosition(userId, 211)
+        val savedPosGraphMove = dbHelper.getStatCardPosition(userId, 211)
+        val savedPosGearSlider = dbHelper.getStatCardPosition(userId, 222)
+        val savedPosControlBox = dbHelper.getStatCardPosition(userId, 202)
+        val savedPos = dbHelper.getStatCardPosition(userId, 201)
+        val savedPosDistance = dbHelper.getStatCardPosition(userId, 223)
+
+
+
+
+        controlParams = LayoutParams(
+            56.dpToPx(),
+            56.dpToPx(),
+            layoutFlag,
+            defaultFlags,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.BOTTOM or Gravity.END
+            disableAnimations()
+        }
+
+
+        cadenceParams = LayoutParams(
+            statCardValues.width.dpToPx(),
+            statCardValues.height.dpToPx(),
+            layoutFlag,
+            defaultFlags,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            if (savedPos != null) {
+                x = savedPos.first
+                y = savedPos.second
+            } else {
+                x = 0
+                y = (30 +statCardValues.height  *3).dpToPx()
+            }
+            disableAnimations()
+        }
+
+        distanceParams = LayoutParams(
+            statCardValues.width.dpToPx(),
+            statCardValues.height.dpToPx(),
+            layoutFlag,
+            defaultFlags,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            if (savedPosDistance != null) {
+                x = savedPosDistance.first
+                y = savedPosDistance.second
+            } else {
+                x = resources.displayMetrics.widthPixels.toInt() - statCardValues.width.dpToPx()
+                y = 125.dpToPx()
+            }
+            disableAnimations()
+        }
+
+        resistanceParams = LayoutParams(
+            statCardValues.width.dpToPx(),
+            statCardValues.height.dpToPx(),
+            layoutFlag,
+            defaultFlags,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            if (savedPosResistance != null) {
+                x = savedPosResistance.first
+                y = savedPosResistance.second
+            } else {
+                x = 0
+                y = (30 +statCardValues.height  *4).dpToPx()
+            }
+            disableAnimations()
+        }
+
+        caloriesParams = LayoutParams(
+            statCardValues.width.dpToPx(),
+            statCardValues.height.dpToPx(),
+            layoutFlag,
+            defaultFlags,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            if (savedPosCalories != null) {
+                x = savedPosCalories.first
+                y = savedPosCalories.second
+            } else {
+                x = resources.displayMetrics.widthPixels.toInt() - statCardValues.width.dpToPx()
+                y = (125 + 1 *statCardValues.height).dpToPx()
+            }
+            disableAnimations()
+        }
+
+        powerParams = LayoutParams(
+            statCardValues.width.dpToPx(),
+            statCardValues.height.dpToPx(),
+            layoutFlag,
+            defaultFlags,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            if (savedPosPower != null) {
+                x = savedPosPower.first
+                y = savedPosPower.second
+            } else {
+                x = 0
+                y = 30.dpToPx()
+            }
+            disableAnimations()
+        }
+
+        durationParams = LayoutParams(
+            statCardValues.width.dpToPx(),
+            statCardValues.height.dpToPx(),
+            layoutFlag,
+            defaultFlags,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            if (savedPosDuration != null) {
+                x = savedPosDuration.first
+                y = savedPosDuration.second
+            } else {
+                x = resources.displayMetrics.widthPixels.toInt() - statCardValues.width.dpToPx()
+                y = (125 + 2 * statCardValues.height).dpToPx()
+            }
+            disableAnimations()
+        }
+
+        gradeParams = LayoutParams(
+            statCardValues.width.dpToPx(),
+            statCardValues.height.dpToPx(),
+            layoutFlag,
+            defaultFlags,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            if (savedPosGrade != null) {
+                x = savedPosGrade.first
+                y = savedPosGrade.second
+            } else {
+                x = resources.displayMetrics.widthPixels.toInt() - statCardValues.width.dpToPx()
+                y = (125 + 3 * statCardValues.height).dpToPx()
+            }
+            disableAnimations()
+        }
+
+        gearParams = LayoutParams(
+            statCardValues.width.dpToPx(),
+            statCardValues.height.dpToPx(),
+            layoutFlag,
+            defaultFlags,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            if (savedPosGear != null) {
+                x = savedPosGear.first
+                y = savedPosGear.second
+            } else {
+                x = resources.displayMetrics.widthPixels.toInt() - statCardValues.width.dpToPx()
+                y = (125 + 4 * statCardValues.height).dpToPx()
+            }
+            disableAnimations()
+        }
+
+        heartRateParams = LayoutParams(
+            statCardValues.width.dpToPx(),
+            statCardValues.height.dpToPx(),
+            layoutFlag,
+            defaultFlags,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            if (savedPosHeartRate != null) {
+                x = savedPosHeartRate.first
+                y = savedPosHeartRate.second
+            } else {
+                x = 0
+                y = (30 +statCardValues.height  *2).dpToPx()
+            }
+            disableAnimations()
+        }
+
+        speedParams = LayoutParams(
+            statCardValues.width.dpToPx(),
+            statCardValues.height.dpToPx(),
+            layoutFlag,
+            defaultFlags,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            if (savedPosSpeed != null) {
+                x = savedPosSpeed.first
+                y = savedPosSpeed.second
+            } else {
+                x = 0
+                y = (30 +statCardValues.height   ).dpToPx()
+            }
+            disableAnimations()
+        }
+
+
+        powerParams = LayoutParams(
+            statCardValues.width.dpToPx(),
+            statCardValues.height.dpToPx(),
+            layoutFlag,
+            defaultFlags,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            if (savedPosPower != null) {
+                x = savedPosPower.first
+                y = savedPosPower.second
+            } else {
+                x = 0
+                y = 30.dpToPx()
+            }
+            disableAnimations()
+        }
+
+        graphMoveParams = LayoutParams(
+            750.dpToPx(),
+            220.dpToPx(),
+            layoutFlag,
+            defaultFlags,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            if (savedPosGraphMove != null) {
+                x = savedPosGraphMove.first
+                y = savedPosGraphMove.second
+            } else {
+                x = 300
+                y = 420.dpToPx()
+            }
+            disableAnimations()
+        }
+
+        graphParams = LayoutParams(
+            750.dpToPx(),
+            220.dpToPx(),
+            layoutFlag,
+            defaultFlags,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            if (savedPosGraph != null) {
+                x = savedPosGraph.first
+                y = savedPosGraph.second
+            } else {
+                x = 300.dpToPx()
+                y = 420.dpToPx()
+            }
+            disableAnimations()
+        }
+
+        alphaSliderParams = LayoutParams(
+            resources.displayMetrics.widthPixels.toInt() - 250,
+            30,
+            layoutFlag,
+            defaultFlags,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            {
+                x = 0
+                y = 0
+            }
+            disableAnimations()
         }
     }
 
+    private fun Int.dpToPx() = (this * resources.displayMetrics.density).roundToInt()
+
+    private fun lockControls() {
+         if (sensorViewModel.lockControls.value) sensorViewModel.mutableLockControls.value = false
+        else
+             sensorViewModel.mutableLockControls.value = true
+
+        setParams()
+
+      //  wm.updateViewLayout(controlView, controlParams)
+        wm.updateViewLayout(cadenceView, cadenceParams)
+       // wm.updateViewLayout(distanceView, distanceParams)
+        wm.updateViewLayout(resistanceView, resistanceParams)
+        wm.updateViewLayout(caloriesView, caloriesParams)
+        wm.updateViewLayout(durationView, durationParams)
+        wm.updateViewLayout(heartRateView, heartRateParams)
+        wm.updateViewLayout(powerView, powerParams)
+       // wm.updateViewLayout(speedView, speedParams)
+        if (sensorViewModel.simMode.value) {
+            wm.updateViewLayout(gearView, gearParams)
+            wm.updateViewLayout(gradeView, gradeParams)
+            wm.updateViewLayout(gearSliderView, gearSliderParams)
+        }
+        wm.updateViewLayout(graphView, graphParams)
+        wm.updateViewLayout(graphViewMove, graphMoveParams)
+        wm.updateViewLayout(alphaSliderView, alphaSliderParams)
+      //  wm.updateViewLayout(controlBoxView, controlBoxParams)
+
+    }
 
     public fun exit() {
         val intent = Intent(this, MainActivity::class.java).apply {
@@ -278,28 +1324,11 @@ class OverlayService : LifecycleEnabledService() {
         startActivity(intent)
         stopForeground(true)
         this.stopSelf()
-        stopForeground(true)
-        this.stopSelf()
-        stopForeground(true)
-        this.stopSelf()
         System.exit(0)
-    }
-
-    fun disableClipOnParents(v: View) {
-        if (v.parent == null) {
-            return
-        }
-        if (v is ViewGroup) {
-            v.clipChildren = false
-        }
-        if (v.parent is View) {
-            disableClipOnParents(v.parent as View)
-        }
     }
 
     private fun prepareNotification(notificationManager: NotificationManagerCompat): Notification {
         val channelId = UUID.randomUUID().toString()
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
             notificationManager.getNotificationChannel(channelId) == null
         ) {
@@ -312,19 +1341,12 @@ class OverlayService : LifecycleEnabledService() {
         val notificationIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
-
         val intentFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         } else {
             PendingIntent.FLAG_UPDATE_CURRENT
         }
-        val pendingIntent = PendingIntent.getActivity(
-            this,
-            0,
-            notificationIntent,
-            intentFlags
-        )
-
+        val pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, intentFlags)
         val notificationBuilder: NotificationCompat.Builder =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 NotificationCompat.Builder(this, channelId)
@@ -332,7 +1354,6 @@ class OverlayService : LifecycleEnabledService() {
                 @Suppress("DEPRECATION")
                 NotificationCompat.Builder(this)
             }
-
         notificationBuilder
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
@@ -342,5 +1363,29 @@ class OverlayService : LifecycleEnabledService() {
             .setContentIntent(pendingIntent)
         notificationBuilder.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
         return notificationBuilder.build()
+    }
+
+    fun resetCardPostions()
+    {
+        sensorViewModel.onClearStatCardPositions()
+
+        setParams()
+
+        wm.updateViewLayout(cadenceView, cadenceParams)
+       // wm.updateViewLayout(distanceView, distanceParams)
+        wm.updateViewLayout(resistanceView, resistanceParams)
+        wm.updateViewLayout(caloriesView, caloriesParams)
+        wm.updateViewLayout(durationView, durationParams)
+        wm.updateViewLayout(heartRateView, heartRateParams)
+        wm.updateViewLayout(powerView, powerParams)
+        //wm.updateViewLayout(speedView, speedParams)
+        if (sensorViewModel.simMode.value) {
+            wm.updateViewLayout(gearView, gearParams)
+            wm.updateViewLayout(gradeView, gradeParams)
+            wm.updateViewLayout(gearSliderView, gearSliderParams)
+        }
+        wm.updateViewLayout(graphView, graphParams)
+        wm.updateViewLayout(graphViewMove, graphMoveParams)
+        wm.updateViewLayout(alphaSliderView, alphaSliderParams)
     }
 }
